@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Planner — Range Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* ---- Surfaces ---- */
+            --bg: #090c11;
+            --bg-2: #0c1017;
+            --surface: #12171f;
+            --surface-2: #182029;
+            --surface-3: #1f2833;
+            --border: rgba(255,255,255,0.08);
+            --border-strong: rgba(255,255,255,0.16);
+            --shadow-lg: 0 20px 60px -15px rgba(0,0,0,0.55);
+            --shadow-sm: 0 8px 24px -10px rgba(0,0,0,0.4);
+
+            /* ---- Text ---- */
+            --text-main: #eef2f7;
+            --text-muted: #8b97a7;
+            --text-faint: #5c6779;
+
+            /* ---- Thermal system ---- */
+            --cold: #4fa6ff;
+            --good: #2bd99f;
+            --hot: #ff6a4d;
+            --accent: #4fa6ff;
+
+            /* ---- Fonts ---- */
+            --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+            --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+        html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            margin: 0;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .ambient span {
+            position: absolute; width: 46vw; height: 46vw; border-radius: 50%;
+            filter: blur(90px); opacity: 0.22;
+            animation: drift 16s ease-in-out infinite alternate;
+        }
+        .glow-cold { top: -14vw; left: -10vw; background: var(--cold); }
+        .glow-good { bottom: -16vw; right: -8vw; background: var(--good); animation-delay: -8s; }
+        @keyframes drift { from { transform: translate(0,0) scale(1);} to { transform: translate(3vw,2vw) scale(1.08);} }
+        @media (prefers-reduced-motion: reduce) { .ambient span { animation: none; } }
+
+        .app-shell { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; }
+
+        .site-header {
+            position: sticky; top: 0; z-index: 20;
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            padding: 18px 24px; margin: 0 -24px 0;
+            background: rgba(9, 12, 17, 0.72);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .brand-mark {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(145deg, var(--cold), var(--good));
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            box-shadow: 0 4px 16px -4px rgba(79,166,255,0.5);
+        }
+        .brand-mark svg { width: 19px; height: 19px; }
+        .brand-word { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; letter-spacing: -0.2px; color: var(--text-main); line-height: 1.1; }
+        .brand-sub { font-size: 0.68rem; color: var(--text-faint); letter-spacing: 0.6px; text-transform: uppercase; font-weight: 600; }
+
+        .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .site-nav { display: flex; align-items: center; gap: 4px; }
+        .nav-link {
+            position: relative; font-family: var(--font-display); font-size: 0.86rem; font-weight: 600;
+            color: var(--text-muted); text-decoration: none; padding: 8px 14px; border-radius: 8px;
+            transition: color 0.2s ease, background 0.2s ease; white-space: nowrap;
+        }
+        .nav-link:hover { color: var(--text-main); background: var(--surface-2); }
+        .nav-link.active { color: var(--text-main); }
+        .nav-link.active::after {
+            content: ''; position: absolute; left: 14px; right: 14px; bottom: 2px; height: 2px; border-radius: 2px;
+            background: linear-gradient(90deg, var(--cold), var(--good));
+        }
+
+        .nav-toggle {
+            display: none; flex-direction: column; justify-content: center; gap: 4px;
+            width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--surface-2); cursor: pointer; flex-shrink: 0;
+        }
+        .nav-toggle span { width: 16px; height: 2px; margin: 0 auto; background: var(--text-main); border-radius: 2px; transition: transform 0.2s ease, opacity 0.2s ease; }
+        .nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+        .nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+        .nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+        .site-nav-mobile { display: none; flex-direction: column; gap: 2px; width: 100%; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border); }
+        .site-nav-mobile.open { display: flex; }
+        .site-nav-mobile .nav-link { padding: 10px 12px; }
+        .site-nav-mobile .nav-link.active { background: var(--surface-2); }
+        .site-nav-mobile .nav-link.active::after { display: none; }
+
+        @media (max-width: 780px) {
+            .site-header { flex-wrap: wrap; }
+            .site-nav { display: none; }
+            .nav-toggle { display: flex; }
+        }
+
+        .hero { padding: 56px 0 36px; text-align: center; max-width: 640px; margin: 0 auto; opacity: 0; animation: rise 0.7s ease forwards; }
+        .eyebrow {
+            font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+            color: var(--good); display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px;
+        }
+        .eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 4px rgba(43,217,159,0.18); }
+        .hero h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.7rem); font-weight: 700; letter-spacing: -0.8px; line-height: 1.15; margin: 0 0 14px; }
+        .hero h1 em { font-style: normal; background: linear-gradient(120deg, var(--cold), var(--good)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .hero p { color: var(--text-muted); font-size: 1rem; line-height: 1.6; margin: 0; }
+        @keyframes rise { from { opacity: 0; transform: translateY(14px);} to { opacity: 1; transform: translateY(0);} }
+
+        .page-stack { display: flex; flex-direction: column; gap: 20px; }
+
+        .panel {
+            background: linear-gradient(180deg, var(--surface), var(--bg-2));
+            border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-sm);
+            padding: 26px; opacity: 0; animation: rise 0.7s ease forwards;
+        }
+        .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+        .panel-head h2 { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; letter-spacing: -0.2px; margin: 0; }
+        .panel-eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text-faint); }
+        .stagger-1 { animation-delay: 0.05s; }
+        .stagger-2 { animation-delay: 0.15s; }
+        .stagger-3 { animation-delay: 0.25s; }
+
+        .field { display: flex; flex-direction: column; gap: 8px; }
+        label { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+
+        select, input[type="number"], input[type="text"] {
+            padding: 13px 14px; border-radius: 12px; border: 1px solid var(--border-strong);
+            background: var(--surface-2); font-family: var(--font-body); font-size: 0.95rem; color: var(--text-main);
+            outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; font-weight: 500; width: 100%;
+        }
+        select:hover, input:hover { border-color: rgba(255,255,255,0.28); }
+        select:focus, input:focus { border-color: var(--accent); background: var(--surface-3); box-shadow: 0 0 0 4px rgba(79,166,255,0.18); }
+        input.input-error { border-color: var(--hot); box-shadow: 0 0 0 4px rgba(255,106,77,0.15); }
+        .field-error { font-size: 0.74rem; color: var(--hot); font-weight: 600; min-height: 1em; }
+        .field-hint { font-size: 0.72rem; color: var(--text-faint); line-height: 1.5; }
+
+        /* ---------------- Planner form ---------------- */
+        .planner-form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: end; }
+        @media (max-width: 720px) { .planner-form { grid-template-columns: 1fr; } }
+        .origin-row { display: flex; gap: 8px; align-items: stretch; }
+        .origin-row input { flex: 1; }
+
+        .btn {
+            border: none; border-radius: 12px; font-family: var(--font-body); font-weight: 700; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease; white-space: nowrap;
+        }
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        .btn:disabled { background: var(--surface-3); color: var(--text-faint); cursor: not-allowed; box-shadow: none; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--good), #17b489); color: #04120c;
+            padding: 13px 22px; font-size: 0.92rem; box-shadow: 0 6px 18px -6px rgba(43,217,159,0.5);
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -6px rgba(43,217,159,0.6); }
+
+        .btn-secondary {
+            background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-main);
+            padding: 0 16px; font-size: 0.85rem;
+        }
+        .btn-secondary:hover:not(:disabled) { background: var(--surface-3); }
+
+        .planner-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+        .planner-status { font-size: 0.86rem; font-weight: 600; color: var(--text-muted); min-height: 1.2em; }
+        .planner-status.error { color: var(--hot); }
+        .planner-status.ok { color: var(--good); }
+
+        /* ---------------- Results ---------------- */
+        #results-section { display: none; }
+        #results-section.show { display: block; }
+
+        .summary-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;
+        }
+        @media (max-width: 780px) { .summary-grid { grid-template-columns: 1fr 1fr; } }
+        .summary-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+        .summary-label { font-family: var(--font-mono); font-size: 0.64rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+        .summary-value { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--text-main); line-height: 1.1; }
+        .summary-value span { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+
+        .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 0.72rem;
+            font-weight: 700; padding: 6px 12px; border-radius: 999px; letter-spacing: 0.2px;
+        }
+        .badge-good { background: rgba(43,217,159,0.12); color: var(--good); border: 1px solid rgba(43,217,159,0.28); }
+        .badge-cold { background: rgba(79,166,255,0.12); color: var(--cold); border: 1px solid rgba(79,166,255,0.28); }
+        .badge-hot { background: rgba(255,106,77,0.12); color: var(--hot); border: 1px solid rgba(255,106,77,0.28); }
+
+        .planner-map { width: 100%; height: 380px; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 20px; }
+
+        .stops-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+        .stop-item {
+            display: flex; gap: 14px; align-items: flex-start; background: var(--surface-2);
+            border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+        }
+        .stop-index {
+            flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--good), #17b489); color: #04120c;
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .stop-item.warn .stop-index { background: linear-gradient(135deg, var(--hot), #c73f22); color: #240a04; }
+        .stop-body { flex: 1; min-width: 0; }
+        .stop-name { font-weight: 700; font-size: 0.92rem; color: var(--text-main); }
+        .stop-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; line-height: 1.5; }
+        .stop-dist { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-faint); flex-shrink: 0; text-align: right; white-space: nowrap; }
+
+        .route-list { display: flex; flex-direction: column; gap: 10px; }
+        .route-card {
+            display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+            background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+        }
+        .route-card.selected { border-color: var(--good); box-shadow: 0 0 0 1px rgba(43,217,159,0.35); }
+        .route-card-info { flex: 1; min-width: 200px; }
+        .route-card-title { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
+        .route-card-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+        .route-card-score { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-faint); margin-top: 3px; }
+
+        .weather-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+        .weather-chip {
+            display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border);
+            border-radius: 14px; padding: 12px 16px; flex: 1; min-width: 200px;
+        }
+        .weather-chip-icon { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; }
+        .weather-chip-label { font-family: var(--font-mono); font-size: 0.64rem; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-faint); }
+        .weather-chip-value { font-family: var(--font-mono); font-size: 1.05rem; font-weight: 700; color: var(--text-main); }
+        .weather-chip-sub { font-size: 0.76rem; color: var(--text-muted); }
+
+        .planner-note {
+            margin-top: 18px; font-size: 0.74rem; color: var(--text-faint); line-height: 1.65;
+            border-top: 1px solid var(--border); padding-top: 16px;
+        }
+        .section-subhead { font-family: var(--font-display); font-weight: 700; font-size: 0.98rem; margin: 0 0 12px; }
+
+        .setup-notice {
+            background: rgba(255,106,77,0.08); border: 1px solid rgba(255,106,77,0.22); color: var(--text-muted);
+            border-radius: 14px; padding: 14px 16px; font-size: 0.82rem; line-height: 1.6; margin-bottom: 18px;
+        }
+        .setup-notice strong { color: var(--text-main); }
+        .setup-notice code { font-family: var(--font-mono); background: var(--surface-3); padding: 1px 6px; border-radius: 5px; font-size: 0.8em; }
+
+        .spinner {
+            width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(4,18,12,0.35);
+            border-top-color: #04120c; animation: spin 0.7s linear infinite; display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .site-footer { margin-top: 8px; font-size: 0.78rem; color: var(--text-faint); text-align: center; }
+
+        @media (max-width: 480px) {
+            .app-shell { padding: 0 16px 60px; }
+            .site-header { padding: 14px 16px; margin: 0 -16px 0; }
+            .panel { padding: 20px; border-radius: 16px; }
+            .hero { padding: 40px 0 28px; }
+            .summary-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient" aria-hidden="true">
+        <span class="glow-cold"></span>
+        <span class="glow-good"></span>
+    </div>
+
+    <div class="app-shell">
+
+        <header class="site-header">
+            <a class="brand" href="index.html">
+                <div class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 2L4 14H11L10 22L20 9H12.5L13 2Z" fill="#04121a"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="brand-word">Range Intelligence</div>
+                    <div class="brand-sub">Smart EV Assistant</div>
+                </div>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary">
+                <a href="index.html#calculator" class="nav-link">Calculator</a>
+                <a href="index.html#carbon" class="nav-link">Carbon</a>
+                <a href="index.html#charging" class="nav-link">Charging</a>
+                <a href="trip-planner.html" class="nav-link active">Trip Planner</a>
+            </nav>
+
+            <div class="header-actions">
+                <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav-mobile">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+
+            <nav class="site-nav-mobile" id="site-nav-mobile" aria-label="Primary mobile">
+                <a href="index.html#calculator" class="nav-link">Calculator</a>
+                <a href="index.html#carbon" class="nav-link">Carbon</a>
+                <a href="index.html#charging" class="nav-link">Charging</a>
+                <a href="trip-planner.html" class="nav-link active">Trip Planner</a>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <span class="eyebrow">EV Trip Planner</span>
+            <h1>Plan the <em>smartest</em> route, not just the shortest.</h1>
+            <p>Enter a start and destination — we compare route alternatives on charging coverage, road/elevation profile, and time, then lay out the stops you'll actually need.</p>
+        </section>
+
+        <div class="page-stack">
+
+            <section class="panel stagger-1" id="planner" aria-labelledby="planner-heading">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">01 · Route Setup</div>
+                        <h2 id="planner-heading">Where are you headed?</h2>
+                    </div>
+                </div>
+
+                <div id="setup-notice" class="setup-notice" style="display:none;"></div>
+
+                <form class="planner-form" id="planner-form" autocomplete="off">
+                    <div class="field">
+                        <label for="origin-input">Starting Point</label>
+                        <div class="origin-row">
+                            <input type="text" id="origin-input" placeholder="Enter a city or address">
+                            <button type="button" class="btn btn-secondary" id="use-location-btn" title="Use my current location">📍 Use My Location</button>
+                        </div>
+                        <div class="field-error" id="origin-error"></div>
+                    </div>
+
+                    <div class="field">
+                        <label for="destination-input">Destination</label>
+                        <input type="text" id="destination-input" placeholder="Enter a city or address">
+                        <div class="field-error" id="destination-error"></div>
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-car-model">Car Model &amp; Battery</label>
+                        <select id="trip-car-model">
+                            <optgroup label="Mahindra">
+                                <option value="79,13.8" selected>Mahindra XEV 9e - Pack Two/Three (79 kWh)</option>
+                                <option value="59,13.5">Mahindra XEV 9e - Pack One (59 kWh)</option>
+                                <option value="79,13.5">Mahindra BE 6e - Pack Two (79 kWh)</option>
+                                <option value="59,13.2">Mahindra BE 6e - Pack One (59 kWh)</option>
+                                <option value="39.4,14.5">Mahindra XUV400 EV (39.4 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Tata Motors">
+                                <option value="55,12.8">Tata Curvv EV (55 kWh)</option>
+                                <option value="40.5,12.5">Tata Nexon EV Long Range (40.5 kWh)</option>
+                                <option value="35,12.2">Tata Punch EV (35 kWh)</option>
+                                <option value="24,11.8">Tata Tiago EV (24 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Tesla">
+                                <option value="75,12.5">Tesla Model 3 - Long Range (75 kWh)</option>
+                                <option value="60,12.2">Tesla Model 3 - RWD (60 kWh)</option>
+                                <option value="75,13.8">Tesla Model Y - Long Range (75 kWh)</option>
+                            </optgroup>
+                            <optgroup label="BYD">
+                                <option value="82.5,14.0">BYD Seal - Extended Range (82.5 kWh)</option>
+                                <option value="60.4,14.2">BYD Atto 3 (60.4 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Kia &amp; Hyundai">
+                                <option value="77.4,14.2">Kia EV6 - GT-Line (77.4 kWh)</option>
+                                <option value="99.8,18.5">Kia EV9 - AWD (99.8 kWh)</option>
+                                <option value="72.6,13.8">Hyundai Ioniq 5 (72.6 kWh)</option>
+                            </optgroup>
+                            <optgroup label="BMW">
+                                <option value="80.7,14.0">BMW i4 - eDrive40 (80.7 kWh)</option>
+                                <option value="111.5,18.8">BMW iX - xDrive50 (111.5 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Volvo">
+                                <option value="78,16.2">Volvo XC40 / EX40 Recharge (78 kWh)</option>
+                                <option value="69,14.8">Volvo EX30 - Extended Range (69 kWh)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-battery-percent">Starting Battery %</label>
+                        <input type="number" id="trip-battery-percent" min="0" max="100" value="100" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-end-battery">Desired Battery % at Trip End</label>
+                        <input type="number" id="trip-end-battery" min="0" max="95" value="20" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-avg-speed">Avg Driving Speed (km/h)</label>
+                        <input type="number" id="trip-avg-speed" min="10" max="160" value="80" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-charging-type">Preferred Charger Type</label>
+                        <select id="trip-charging-type">
+                            <option value="all" selected>All types</option>
+                            <option value="slow">Slow (AC)</option>
+                            <option value="fast">Fast (DC)</option>
+                            <option value="ultra">Ultra-fast (DC)</option>
+                        </select>
+                    </div>
+
+                    <div class="planner-actions">
+                        <button type="submit" class="btn btn-primary" id="plan-trip-btn">⚡ Plan Trip</button>
+                        <div class="planner-status" id="planner-status"></div>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel stagger-2" id="results-section" aria-labelledby="results-heading">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">02 · Recommended Route</div>
+                        <h2 id="results-heading">Trip overview</h2>
+                    </div>
+                </div>
+
+                <div class="badge-row" id="badge-row"></div>
+
+                <div class="summary-grid" id="summary-grid"></div>
+
+                <div class="weather-row" id="weather-row"></div>
+
+                <div class="planner-map" id="planner-map"></div>
+
+                <div class="planner-actions">
+                    <button type="button" class="btn btn-secondary" id="live-nav-btn">🧭 Start Live Navigation</button>
+                    <div class="planner-status" id="live-nav-status"></div>
+                </div>
+
+                <h3 class="section-subhead">Charging stops on this route</h3>
+                <div class="stops-list" id="stops-list"></div>
+
+                <h3 class="section-subhead" style="margin-top:22px;">Alternative routes</h3>
+                <div class="route-list" id="route-list"></div>
+
+                <div class="planner-note">
+                    Charging stations come from Google Places nearby search along each route. Road quality is
+                    estimated from average driving speed and route elevation change — Google Maps does not expose a
+                    direct road-condition signal, so this is a heuristic, not a pothole report. Suggested stop
+                    spacing is based on the range from your last Calculator session (or a default assumption if none
+                    is saved), with a buffer kept in reserve. Weather is current conditions at the start and end
+                    points, not a forecast along the whole route.
+                </div>
+            </section>
+
+            <footer class="site-footer stagger-3">
+                Trip planning uses your browser's location only with permission, and is not stored anywhere.
+            </footer>
+
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        // ================================================================
+        // Paste your Google Maps API key below. This page needs, at
+        // minimum: Maps JavaScript API, Places API, and Directions
+        // (used via the JS DirectionsService, no separate enablement
+        // needed beyond Maps JavaScript API). The optional weather chips
+        // call the Weather API (weather.googleapis.com) with the same
+        // key — enable that too if you want temperature shown.
+        // ================================================================
+        var GOOGLE_MAPS_API_KEY = 'AIzaSyC8ZI6LirwtLQDxePA7yQdGe3xUmIxo7Fs';
+
+        var KM_TO_MI = 0.621371;
+        var RANGE_STORAGE_KEY = 'evRangeCalculator.settings.v2';
+
+        // ---------- DOM ----------
+        var originInput = document.getElementById('origin-input');
+        var destInput = document.getElementById('destination-input');
+        var useLocationBtn = document.getElementById('use-location-btn');
+        var form = document.getElementById('planner-form');
+        var planBtn = document.getElementById('plan-trip-btn');
+        var statusEl = document.getElementById('planner-status');
+        var originErrorEl = document.getElementById('origin-error');
+        var destErrorEl = document.getElementById('destination-error');
+        var setupNoticeEl = document.getElementById('setup-notice');
+        var modelEl = document.getElementById('trip-car-model');
+        var batteryEl = document.getElementById('trip-battery-percent');
+        var endBatteryEl = document.getElementById('trip-end-battery');
+        var speedEl = document.getElementById('trip-avg-speed');
+        var chargeTypeEl = document.getElementById('trip-charging-type');
+
+        function getTripInputs() {
+            var soc = parseFloat(batteryEl.value), endBattery = parseFloat(endBatteryEl.value), speed = parseFloat(speedEl.value);
+            if (isNaN(soc) || soc <= 0) soc = 100;
+            if (isNaN(speed) || speed <= 0) speed = 80;
+            if (isNaN(endBattery) || endBattery < 0) endBattery = 20;
+            if (endBattery >= soc) endBattery = Math.max(0, soc - 5);
+            return { model: modelEl.value, soc: soc, endBattery: endBattery, speed: speed, chargeType: chargeTypeEl.value };
+        }
+
+        // Rough keyword bands used to bucket a returned station into slow/fast/ultra-fast.
+        var CHARGE_TYPE_KEYWORDS = {
+            slow: ['slow', 'ac charg', 'level 2', 'type 2'],
+            fast: ['fast', 'dc fast', 'ccs', 'chademo'],
+            ultra: ['ultra', 'hpc', 'high power', 'supercharg', '150kw', '150 kw', '350kw', '350 kw']
+        };
+        function guessChargeType(place) {
+            var text = ((place.name || '') + ' ' + (place.vicinity || '')).toLowerCase();
+            if (CHARGE_TYPE_KEYWORDS.ultra.some(function (k) { return text.indexOf(k) !== -1; })) return 'ultra';
+            if (CHARGE_TYPE_KEYWORDS.fast.some(function (k) { return text.indexOf(k) !== -1; })) return 'fast';
+            if (CHARGE_TYPE_KEYWORDS.slow.some(function (k) { return text.indexOf(k) !== -1; })) return 'slow';
+            return 'unknown';
+        }
+
+        var resultsSection = document.getElementById('results-section');
+        var badgeRow = document.getElementById('badge-row');
+        var summaryGrid = document.getElementById('summary-grid');
+        var weatherRow = document.getElementById('weather-row');
+        var mapEl = document.getElementById('planner-map');
+        var stopsListEl = document.getElementById('stops-list');
+        var routeListEl = document.getElementById('route-list');
+
+        var state = {
+            originPlace: null,   // {lat, lng, label}
+            destPlace: null,     // {lat, lng, label}
+            directionsResult: null,
+            routesMeta: [],
+            selectedIndex: 0
+        };
+
+        var mapsLoaded = false, mapsLoading = false;
+        var map, directionsService, directionsRenderer, placesService, elevationService, geocoder;
+        var stopMarkers = [];
+
+        function setStatus(text, type) {
+            statusEl.textContent = text || '';
+            statusEl.className = 'planner-status' + (type ? ' ' + type : '');
+        }
+
+        function setFieldError(el, msg) {
+            el.textContent = msg || '';
+        }
+
+        // ---------- Google Maps bootstrap (same lazy-load pattern as the charging panel) ----------
+        window.gm_authFailure = function () {
+            mapsLoading = false;
+            setStatus('Google Maps could not be loaded. Check your API key and that Maps JavaScript API + Places API are enabled.', 'error');
+            resetPlanButton();
+        };
+
+        function loadGoogleMapsScript(callback) {
+            if (mapsLoaded && window.google && window.google.maps) { callback(); return; }
+            if (mapsLoading) {
+                var check = setInterval(function () {
+                    if (mapsLoaded) { clearInterval(check); callback(); }
+                }, 200);
+                return;
+            }
+            if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
+                setupNoticeEl.style.display = 'block';
+                setupNoticeEl.innerHTML = '<strong>API key needed.</strong> Add your Google Maps API key to <code>GOOGLE_MAPS_API_KEY</code> near the top of the script in this page (needs Maps JavaScript API + Places API enabled). Autocomplete and trip planning stay disabled until then.';
+                return;
+            }
+            mapsLoading = true;
+            window.__initTripPlannerCallback = function () {
+                mapsLoaded = true;
+                mapsLoading = false;
+                callback();
+            };
+            var script = document.createElement('script');
+            script.src = 'https://maps.googleapis.com/maps/api/js?key=' +
+                encodeURIComponent(GOOGLE_MAPS_API_KEY) +
+                '&libraries=places,geometry&callback=__initTripPlannerCallback';
+            script.async = true;
+            script.defer = true;
+            script.onerror = function () {
+                mapsLoading = false;
+                setStatus('Could not reach Google Maps. Check your internet connection.', 'error');
+            };
+            document.head.appendChild(script);
+        }
+
+        function initMapsFeatures() {
+            geocoder = new google.maps.Geocoder();
+            elevationService = new google.maps.ElevationService();
+
+            var autocompleteOptions = { fields: ['geometry', 'formatted_address', 'name'] };
+
+            var originAC = new google.maps.places.Autocomplete(originInput, autocompleteOptions);
+            originAC.addListener('place_changed', function () {
+                var place = originAC.getPlace();
+                if (place && place.geometry) {
+                    state.originPlace = {
+                        lat: place.geometry.location.lat(),
+                        lng: place.geometry.location.lng(),
+                        label: place.formatted_address || place.name || originInput.value
+                    };
+                }
+            });
+
+            var destAC = new google.maps.places.Autocomplete(destInput, autocompleteOptions);
+            destAC.addListener('place_changed', function () {
+                var place = destAC.getPlace();
+                if (place && place.geometry) {
+                    state.destPlace = {
+                        lat: place.geometry.location.lat(),
+                        lng: place.geometry.location.lng(),
+                        label: place.formatted_address || place.name || destInput.value
+                    };
+                }
+            });
+
+            // Any manual retyping invalidates a previously-picked place so we re-geocode on submit.
+            originInput.addEventListener('input', function () { state.originPlace = null; });
+            destInput.addEventListener('input', function () { state.destPlace = null; });
+        }
+
+        loadGoogleMapsScript(initMapsFeatures);
+
+        // ---------- "Use my location" ----------
+        function resetLocationButton() {
+            useLocationBtn.disabled = false;
+            useLocationBtn.textContent = '📍 Use My Location';
+        }
+
+        useLocationBtn.addEventListener('click', function () {
+            if (!navigator.geolocation) {
+                setFieldError(originErrorEl, 'Geolocation is not supported by your browser.');
+                return;
+            }
+            useLocationBtn.disabled = true;
+            useLocationBtn.textContent = 'Locating…';
+            setFieldError(originErrorEl, '');
+
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    var lat = position.coords.latitude, lng = position.coords.longitude;
+                    state.originPlace = { lat: lat, lng: lng, label: 'My current location' };
+                    originInput.value = 'My current location (' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
+                    resetLocationButton();
+
+                    loadGoogleMapsScript(function () {
+                        if (!geocoder) geocoder = new google.maps.Geocoder();
+                        geocoder.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
+                            if (status === 'OK' && results && results[0]) {
+                                originInput.value = results[0].formatted_address;
+                                state.originPlace.label = results[0].formatted_address;
+                            }
+                        });
+                    });
+                },
+                function (error) {
+                    resetLocationButton();
+                    var msg = 'Could not get your location.';
+                    if (error.code === error.PERMISSION_DENIED) msg = 'Location permission denied.';
+                    else if (error.code === error.POSITION_UNAVAILABLE) msg = 'Location information is unavailable.';
+                    else if (error.code === error.TIMEOUT) msg = 'Location request timed out.';
+                    setFieldError(originErrorEl, msg);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+            );
+        });
+
+        // ---------- Geocode free-typed text that wasn't picked from Autocomplete ----------
+        function resolvePlace(existing, text) {
+            return new Promise(function (resolve) {
+                if (existing) { resolve(existing); return; }
+                var trimmed = (text || '').trim();
+                if (!trimmed) { resolve(null); return; }
+                geocoder.geocode({ address: trimmed }, function (results, status) {
+                    if (status === 'OK' && results && results[0]) {
+                        resolve({
+                            lat: results[0].geometry.location.lat(),
+                            lng: results[0].geometry.location.lng(),
+                            label: results[0].formatted_address
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                });
+            });
+        }
+
+        // ---------- Range estimate, using the trip form's model/battery/speed inputs ----------
+        function estimateRangeKm(inputs) {
+            inputs = inputs || getTripInputs();
+            var data = null;
+            try {
+                var raw = localStorage.getItem(RANGE_STORAGE_KEY);
+                if (raw) data = JSON.parse(raw);
+            } catch (e) { /* ignore */ }
+
+            var model = inputs.model;
+            var soc = inputs.soc;
+            var speed = inputs.speed;
+            var temp = (data && data.temp !== undefined) ? parseFloat(data.temp) : 25;
+
+            var parts = model.split(',').map(parseFloat);
+            var batteryCapacity = parts[0], baseConsumption = parts[1];
+            if (isNaN(batteryCapacity) || isNaN(baseConsumption)) { batteryCapacity = 79; baseConsumption = 13.8; }
+            if (isNaN(soc) || soc <= 0) soc = 100;
+            if (isNaN(speed) || speed <= 0) speed = 65;
+            if (isNaN(temp)) temp = 25;
+
+            var usableKwh = batteryCapacity * (soc / 100);
+            var refSpeed = 60.0;
+            var rollingComponent = baseConsumption * 0.65;
+            var dragComponent = baseConsumption * 0.35 * Math.pow(speed / refSpeed, 2);
+            var lowSpeedOverhead = speed < 30 ? (30 - speed) * 0.15 : 0;
+            var speedConsumption = rollingComponent + dragComponent + lowSpeedOverhead;
+
+            var hvacPowerKw = 0.3;
+            var batteryDerating = 1.0;
+            if (temp > 28) {
+                hvacPowerKw += 0.35 + Math.pow(temp - 28, 1.25) * 0.09;
+            } else if (temp < 22) {
+                hvacPowerKw += 0.45 + Math.pow(22 - temp, 1.2) * 0.12;
+                batteryDerating = Math.max(0.82, 1.0 - (22 - temp) * 0.006);
+            }
+            var hvacConsumption = (hvacPowerKw / speed) * 100;
+            var totalConsumption = speedConsumption + hvacConsumption;
+            var adjustedUsableKwh = usableKwh * batteryDerating;
+            return (adjustedUsableKwh / totalConsumption) * 100; // km
+        }
+
+        // ---------- Geometry helpers ----------
+        function metersBetween(a, b) {
+            return google.maps.geometry.spherical.computeDistanceBetween(a, b);
+        }
+
+        function buildCumulativeDistances(path) {
+            var cum = [0];
+            for (var i = 1; i < path.length; i++) {
+                cum.push(cum[i - 1] + metersBetween(path[i - 1], path[i]));
+            }
+            return cum;
+        }
+
+        function pointAtDistance(path, cum, targetMeters) {
+            for (var i = 1; i < cum.length; i++) {
+                if (cum[i] >= targetMeters) {
+                    var segStart = cum[i - 1], segEnd = cum[i];
+                    var frac = segEnd > segStart ? (targetMeters - segStart) / (segEnd - segStart) : 0;
+                    return google.maps.geometry.spherical.interpolate(path[i - 1], path[i], frac);
+                }
+            }
+            return path[path.length - 1];
+        }
+
+        function sampleWaypoints(path, cum, intervalKm) {
+            var totalMeters = cum[cum.length - 1];
+            var points = [];
+            var stepMeters = intervalKm * 1000;
+            for (var d = stepMeters; d < totalMeters; d += stepMeters) {
+                points.push(pointAtDistance(path, cum, d));
+            }
+            if (points.length === 0 && totalMeters > 0) points.push(pointAtDistance(path, cum, totalMeters / 2));
+            return points.slice(0, 8); // cap Places calls per route
+        }
+
+        // ---------- Elevation ----------
+        function getElevationGain(path) {
+            return new Promise(function (resolve) {
+                elevationService.getElevationAlongPath(
+                    { path: path, samples: Math.min(30, Math.max(6, path.length)) },
+                    function (results, status) {
+                        if (status !== 'OK' || !results || !results.length) { resolve({ gain: 0, ok: false }); return; }
+                        var gain = 0;
+                        for (var i = 1; i < results.length; i++) {
+                            var diff = results[i].elevation - results[i - 1].elevation;
+                            if (diff > 0) gain += diff;
+                        }
+                        resolve({ gain: gain, ok: true });
+                    }
+                );
+            });
+        }
+
+        // ---------- Charging stations ----------
+        function searchChargingStations(location) {
+            return new Promise(function (resolve) {
+                placesService.nearbySearch(
+                    { location: location, radius: 12000, type: 'electric_vehicle_charging_station', keyword: 'EV charging station' },
+                    function (results, status) {
+                        resolve(status === google.maps.places.PlacesServiceStatus.OK && results ? results : []);
+                    }
+                );
+            });
+        }
+
+        function gatherChargingStationsForRoute(waypoints) {
+            var calls = waypoints.map(function (pt) { return searchChargingStations(pt); });
+            return Promise.all(calls).then(function (resultsArrays) {
+                var byId = {};
+                resultsArrays.forEach(function (arr) {
+                    arr.forEach(function (place) {
+                        if (place.place_id && !byId[place.place_id]) byId[place.place_id] = place;
+                    });
+                });
+                return Object.keys(byId).map(function (id) { return byId[id]; });
+            });
+        }
+
+        // ---------- Build metrics for every route alternative ----------
+        function buildRouteMeta(route, index) {
+            var legs = route.legs;
+            var distanceMeters = 0, durationSeconds = 0;
+            legs.forEach(function (leg) { distanceMeters += leg.distance.value; durationSeconds += leg.duration.value; });
+            var distanceKm = distanceMeters / 1000;
+            var durationMin = durationSeconds / 60;
+            var avgSpeedKmh = durationMin > 0 ? distanceKm / (durationMin / 60) : 0;
+
+            var path = route.overview_path;
+            var cum = buildCumulativeDistances(path);
+            var waypoints = sampleWaypoints(path, cum, 60); // roughly every 60km
+
+            return Promise.all([
+                getElevationGain(path),
+                gatherChargingStationsForRoute(waypoints)
+            ]).then(function (res) {
+                return {
+                    index: index,
+                    summary: route.summary || ('Route ' + (index + 1)),
+                    distanceKm: distanceKm,
+                    durationMin: durationMin,
+                    avgSpeedKmh: avgSpeedKmh,
+                    elevationGain: res[0].gain,
+                    elevationOk: res[0].ok,
+                    chargingStations: res[1],
+                    path: path,
+                    cum: cum
+                };
+            });
+        }
+
+        function scoreRoutes(metas) {
+            var maxCharging = Math.max.apply(null, metas.map(function (m) { return m.chargingStations.length; })) || 1;
+            var speeds = metas.map(function (m) { return m.avgSpeedKmh; });
+            var minSpeed = Math.min.apply(null, speeds), maxSpeed = Math.max.apply(null, speeds);
+            var elevations = metas.map(function (m) { return m.elevationGain; });
+            var minElev = Math.min.apply(null, elevations), maxElev = Math.max.apply(null, elevations);
+
+            metas.forEach(function (m) {
+                var chargingNorm = m.chargingStations.length / maxCharging;
+                var speedNorm = maxSpeed > minSpeed ? (m.avgSpeedKmh - minSpeed) / (maxSpeed - minSpeed) : 1;
+                var elevNorm = maxElev > minElev ? (m.elevationGain - minElev) / (maxElev - minElev) : 0;
+                m.score = (0.40 * chargingNorm) + (0.35 * speedNorm) + (0.25 * (1 - elevNorm));
+            });
+
+            metas.sort(function (a, b) { return b.score - a.score; });
+            return metas;
+        }
+
+        // ---------- Suggested charging stops along the chosen route ----------
+        function planStops(meta) {
+            var inputs = getTripInputs();
+            var rangeKm = estimateRangeKm(inputs);
+            // Reserve down to the driver's desired end-of-trip battery %, not empty.
+            var usableFraction = Math.max(0.05, Math.min(0.95, 1 - (inputs.endBattery / inputs.soc)));
+            var bufferedRange = rangeKm * usableFraction;
+            var stops = [];
+
+            var candidateStations = inputs.chargeType === 'all' ? meta.chargingStations :
+                meta.chargingStations.filter(function (s) { return guessChargeType(s) === inputs.chargeType; });
+
+            if (!isFinite(bufferedRange) || bufferedRange <= 0 || meta.distanceKm <= bufferedRange) {
+                return { stops: stops, rangeKm: rangeKm };
+            }
+
+            var target = bufferedRange;
+            while (target < meta.distanceKm) {
+                var targetPoint = pointAtDistance(meta.path, meta.cum, target * 1000);
+                var nearest = null, nearestDist = Infinity;
+                candidateStations.forEach(function (station) {
+                    var loc = station.geometry && station.geometry.location;
+                    if (!loc) return;
+                    var d = metersBetween(targetPoint, loc);
+                    if (d < nearestDist) { nearestDist = d; nearest = station; }
+                });
+
+                if (nearest && nearestDist <= 20000) {
+                    stops.push({
+                        name: nearest.name,
+                        address: nearest.vicinity || '',
+                        rating: nearest.rating,
+                        chargeType: guessChargeType(nearest),
+                        location: nearest.geometry.location,
+                        approxKm: Math.round(target),
+                        found: true
+                    });
+                } else {
+                    stops.push({
+                        name: 'No charger found near this point',
+                        address: 'Consider a manual stop around here, or widen the search radius.',
+                        location: targetPoint,
+                        approxKm: Math.round(target),
+                        found: false
+                    });
+                }
+                target += bufferedRange;
+            }
+            return { stops: stops, rangeKm: rangeKm };
+        }
+
+        // ---------- Weather (optional, needs Weather API enabled on the same key) ----------
+        function fetchWeather(lat, lng) {
+            var url = 'https://weather.googleapis.com/v1/currentConditions:lookup?key=' +
+                encodeURIComponent(GOOGLE_MAPS_API_KEY) + '&location.latitude=' + lat + '&location.longitude=' + lng + '&unitsSystem=METRIC';
+            return fetch(url).then(function (r) {
+                if (!r.ok) throw new Error('weather request failed');
+                return r.json();
+            }).catch(function () { return null; });
+        }
+
+        function renderWeather(originPlace, destPlace) {
+            weatherRow.innerHTML = '';
+            Promise.all([
+                fetchWeather(originPlace.lat, originPlace.lng),
+                fetchWeather(destPlace.lat, destPlace.lng)
+            ]).then(function (res) {
+                var labels = ['Start', 'Destination'];
+                var places = [originPlace, destPlace];
+                var any = false;
+                res.forEach(function (w, i) {
+                    if (!w || !w.temperature) return;
+                    any = true;
+                    var chip = document.createElement('div');
+                    chip.className = 'weather-chip';
+                    var iconUrl = w.weatherCondition && w.weatherCondition.iconBaseUri ? w.weatherCondition.iconBaseUri + '.png' : '';
+                    chip.innerHTML =
+                        (iconUrl ? '<img class="weather-chip-icon" src="' + iconUrl + '" alt="">' : '') +
+                        '<div><div class="weather-chip-label">' + labels[i] + ' weather</div>' +
+                        '<div class="weather-chip-value">' + Math.round(w.temperature.degrees) + '°C</div>' +
+                        '<div class="weather-chip-sub">' + (w.weatherCondition && w.weatherCondition.description ? w.weatherCondition.description.text : '') + '</div></div>';
+                    weatherRow.appendChild(chip);
+                });
+                if (!any) {
+                    weatherRow.innerHTML = '<div class="field-hint">Weather unavailable — enable the Weather API on your Google Maps key to see live temperature here.</div>';
+                }
+            });
+        }
+
+        // ---------- Rendering ----------
+        function fmtDuration(minutes) {
+            var h = Math.floor(minutes / 60), m = Math.round(minutes % 60);
+            return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+        }
+
+        function clearMarkers() {
+            stopMarkers.forEach(function (m) { m.setMap(null); });
+            stopMarkers = [];
+        }
+
+        function renderMap(meta) {
+            directionsRenderer.setDirections(state.directionsResult);
+            directionsRenderer.setRouteIndex(meta.originalIndex);
+        }
+
+        // ---------- Live navigation: tracks the browser's live position on the route map ----------
+        var liveNavWatchId = null, liveNavMarker = null;
+        var liveNavBtn = document.getElementById('live-nav-btn');
+        var liveNavStatusEl = document.getElementById('live-nav-status');
+
+        function stopLiveNav() {
+            if (liveNavWatchId !== null) navigator.geolocation.clearWatch(liveNavWatchId);
+            liveNavWatchId = null;
+            if (liveNavMarker) { liveNavMarker.setMap(null); liveNavMarker = null; }
+            liveNavBtn.textContent = '🧭 Start Live Navigation';
+            liveNavStatusEl.textContent = '';
+        }
+
+        function startLiveNav() {
+            if (!navigator.geolocation) {
+                liveNavStatusEl.textContent = 'Geolocation is not supported by your browser.';
+                return;
+            }
+            liveNavBtn.textContent = '🧭 Stop Live Navigation';
+            liveNavStatusEl.textContent = 'Tracking your live position…';
+
+            liveNavWatchId = navigator.geolocation.watchPosition(
+                function (position) {
+                    var pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    if (!liveNavMarker) {
+                        liveNavMarker = new google.maps.Marker({
+                            position: pos, map: map, title: 'You are here',
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
+                        });
+                    } else {
+                        liveNavMarker.setPosition(pos);
+                    }
+                    map.panTo(pos);
+                    liveNavStatusEl.textContent = 'Live position updated ' + new Date().toLocaleTimeString();
+                },
+                function () { liveNavStatusEl.textContent = 'Could not read live location. Check location permissions.'; },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+            );
+        }
+
+        liveNavBtn.addEventListener('click', function () {
+            if (liveNavWatchId !== null) stopLiveNav(); else startLiveNav();
+        });
+
+        function renderStopMarkers(stops) {
+            clearMarkers();
+            stops.forEach(function (stop, i) {
+                var marker = new google.maps.Marker({
+                    position: stop.location,
+                    map: map,
+                    label: { text: String(i + 1), color: '#04120c', fontWeight: '700', fontSize: '12px' },
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 12,
+                        fillColor: stop.found ? '#2bd99f' : '#ff6a4d',
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: '#ffffff'
+                    },
+                    title: stop.name
+                });
+                stopMarkers.push(marker);
+            });
+        }
+
+        function renderBadges(meta, othersCount) {
+            badgeRow.innerHTML = '';
+            var badges = [];
+            badges.push({ cls: 'badge-good', text: '⚡ ' + meta.chargingStations.length + ' charging station(s) nearby' });
+            badges.push({ cls: 'badge-cold', text: '🛣 ~' + Math.round(meta.avgSpeedKmh) + ' km/h avg (road-quality proxy)' });
+            if (meta.elevationOk) badges.push({ cls: meta.elevationGain > 800 ? 'badge-hot' : 'badge-good', text: '⛰ ' + Math.round(meta.elevationGain) + ' m total climb' });
+            if (othersCount > 0) badges.push({ cls: 'badge-good', text: 'Best of ' + (othersCount + 1) + ' routes compared' });
+            badges.forEach(function (b) {
+                var span = document.createElement('span');
+                span.className = 'badge ' + b.cls;
+                span.textContent = b.text;
+                badgeRow.appendChild(span);
+            });
+        }
+
+        function renderSummary(meta, stopsInfo, unit) {
+            summaryGrid.innerHTML = '';
+            var distanceDisplay = unit === 'mi' ? (meta.distanceKm * KM_TO_MI).toFixed(0) + ' <span>mi</span>' : meta.distanceKm.toFixed(0) + ' <span>km</span>';
+            var cards = [
+                { label: 'Total distance', value: distanceDisplay },
+                { label: 'Total drive time', value: fmtDuration(meta.durationMin) },
+                { label: 'Charging stops needed', value: String(stopsInfo.stops.filter(function (s) { return true; }).length) },
+                { label: 'Est. usable range', value: Math.round(stopsInfo.rangeKm) + ' <span>km</span>' }
+            ];
+            cards.forEach(function (c) {
+                var card = document.createElement('div');
+                card.className = 'summary-card';
+                card.innerHTML = '<div class="summary-label">' + c.label + '</div><div class="summary-value">' + c.value + '</div>';
+                summaryGrid.appendChild(card);
+            });
+        }
+
+        function renderStops(stopsInfo) {
+            stopsListEl.innerHTML = '';
+            if (!stopsInfo.stops.length) {
+                stopsListEl.innerHTML = '<div class="field-hint">Your estimated range comfortably covers this trip — no charging stop should be necessary.</div>';
+                return;
+            }
+            stopsInfo.stops.forEach(function (stop, i) {
+                var item = document.createElement('div');
+                item.className = 'stop-item' + (stop.found ? '' : ' warn');
+                item.innerHTML =
+                    '<div class="stop-index">' + (i + 1) + '</div>' +
+                    '<div class="stop-body">' +
+                    '<div class="stop-name">' + stop.name + '</div>' +
+                    '<div class="stop-meta">' + stop.address + (stop.rating ? ' · ★ ' + stop.rating : '') + (stop.chargeType ? ' · ' + ({slow:'Slow (AC)',fast:'Fast (DC)',ultra:'Ultra-fast (DC)',unknown:'Type unconfirmed'}[stop.chargeType]) : '') + '</div>' +
+                    '</div>' +
+                    '<div class="stop-dist">~' + stop.approxKm + ' km in</div>';
+                stopsListEl.appendChild(item);
+            });
+        }
+
+        function renderRouteList(metas, selectedMeta) {
+            routeListEl.innerHTML = '';
+            metas.forEach(function (m) {
+                var card = document.createElement('div');
+                card.className = 'route-card' + (m === selectedMeta ? ' selected' : '');
+                card.innerHTML =
+                    '<div class="route-card-info">' +
+                    '<div class="route-card-title">' + (m === selectedMeta ? '✓ Recommended — ' : '') + m.summary + '</div>' +
+                    '<div class="route-card-meta">' + m.distanceKm.toFixed(0) + ' km · ' + fmtDuration(m.durationMin) + ' · ' + m.chargingStations.length + ' charging station(s) nearby · ' + Math.round(m.elevationGain) + ' m climb</div>' +
+                    '<div class="route-card-score">score ' + m.score.toFixed(2) + '</div>' +
+                    '</div>' +
+                    (m === selectedMeta ? '' : '<button type="button" class="btn btn-secondary preview-btn" data-index="' + m.originalIndex + '">Preview on map</button>');
+                routeListEl.appendChild(card);
+
+                var btn = card.querySelector('.preview-btn');
+                if (btn) {
+                    btn.addEventListener('click', function () {
+                        directionsRenderer.setRouteIndex(m.originalIndex);
+                        mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                }
+            });
+        }
+
+        function renderResults(metas, unit) {
+            stopLiveNav();
+            var best = metas[0];
+            renderBadges(best, metas.length - 1);
+            var stopsInfo = planStops(best);
+            renderSummary(best, stopsInfo, unit);
+            renderMap(best);
+            renderStopMarkers(stopsInfo.stops);
+            renderStops(stopsInfo);
+            renderRouteList(metas, best);
+            renderWeather(state.originPlace, state.destPlace);
+
+            resultsSection.classList.add('show');
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ---------- Plan trip flow ----------
+        function resetPlanButton() {
+            planBtn.disabled = false;
+            planBtn.innerHTML = '⚡ Plan Trip';
+        }
+
+        function initMapIfNeeded() {
+            if (map) return;
+            map = new google.maps.Map(mapEl, { center: { lat: 20.5937, lng: 78.9629 }, zoom: 5 });
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({ map: map, suppressMarkers: false });
+            placesService = new google.maps.places.PlacesService(map);
+        }
+
+        function planTrip(originPlace, destPlace) {
+            initMapIfNeeded();
+
+            directionsService.route({
+                origin: { lat: originPlace.lat, lng: originPlace.lng },
+                destination: { lat: destPlace.lat, lng: destPlace.lng },
+                travelMode: google.maps.TravelMode.DRIVING,
+                provideRouteAlternatives: true
+            }, function (result, status) {
+                if (status !== google.maps.DirectionsStatus.OK || !result.routes.length) {
+                    setStatus('Could not find a driving route between those two points.', 'error');
+                    resetPlanButton();
+                    return;
+                }
+
+                state.directionsResult = result;
+                setStatus('Comparing ' + result.routes.length + ' route option(s) for charging coverage and road quality…', '');
+
+                var metaPromises = result.routes.map(function (route, i) { return buildRouteMeta(route, i); });
+                Promise.all(metaPromises).then(function (metas) {
+                    metas.forEach(function (m) { m.originalIndex = m.index; });
+                    var scored = scoreRoutes(metas);
+
+                    // Before planning the trip, make sure a route actually exists where every
+                    // required charging stop could be located. If none of the route options can
+                    // be fully covered by known charging stations, don't plan the trip — say so.
+                    var feasible = scored.filter(function (m) {
+                        var stopsInfo = planStops(m);
+                        return !stopsInfo.stops.some(function (s) { return !s.found; });
+                    });
+
+                    if (feasible.length === 0) {
+                        state.routesMeta = null;
+                        setStatus('This trip can\'t be planned: no EV charging station could be located along any route to cover the distance with your vehicle\'s range. Try a shorter trip, adjust your range/battery settings, or widen charger search coverage.', 'error');
+                        resetPlanButton();
+                        resultsSection.classList.remove('show');
+                        return;
+                    }
+
+                    state.routesMeta = feasible;
+                    setStatus('Route ready.', 'ok');
+                    resetPlanButton();
+                    renderResults(feasible, 'km');
+                }).catch(function () {
+                    setStatus('Something went wrong while analyzing routes. Please try again.', 'error');
+                    resetPlanButton();
+                });
+            });
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            setFieldError(originErrorEl, '');
+            setFieldError(destErrorEl, '');
+            setStatus('', '');
+
+            if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
+                setupNoticeEl.style.display = 'block';
+                return;
+            }
+            if (!originInput.value.trim()) { setFieldError(originErrorEl, 'Enter a starting point, or use your location.'); return; }
+            if (!destInput.value.trim()) { setFieldError(destErrorEl, 'Enter a destination.'); return; }
+
+            planBtn.disabled = true;
+            planBtn.innerHTML = '<span class="spinner"></span> Planning…';
+            setStatus('Looking up your locations…', '');
+
+            loadGoogleMapsScript(function () {
+                if (!geocoder) geocoder = new google.maps.Geocoder();
+                Promise.all([
+                    resolvePlace(state.originPlace, originInput.value),
+                    resolvePlace(state.destPlace, destInput.value)
+                ]).then(function (places) {
+                    var origin = places[0], dest = places[1];
+                    if (!origin) { setFieldError(originErrorEl, 'Could not find that location.'); resetPlanButton(); return; }
+                    if (!dest) { setFieldError(destErrorEl, 'Could not find that location.'); resetPlanButton(); return; }
+                    state.originPlace = origin;
+                    state.destPlace = dest;
+                    planTrip(origin, dest);
+                });
+            });
+        });
+
+        // ---------- Mobile nav (same behavior as the main page) ----------
+        var toggle = document.getElementById('nav-toggle');
+        var mobileNav = document.getElementById('site-nav-mobile');
+        if (toggle && mobileNav) {
+            toggle.addEventListener('click', function () {
+                var isOpen = mobileNav.classList.toggle('open');
+                toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+        }
+    })();
+    </script>
+</body>
+</html>
