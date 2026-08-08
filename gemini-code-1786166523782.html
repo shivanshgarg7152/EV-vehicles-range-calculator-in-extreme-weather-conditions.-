@@ -1,0 +1,1920 @@
+[cite: 3, 4]<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Range Intelligence — Real-World EV Range, Impact &amp; Charging</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* ---- Surfaces ---- */
+            --bg: #090c11;
+            --bg-2: #0c1017;
+            --surface: #12171f;
+            --surface-2: #182029;
+            --surface-3: #1f2833;
+            --border: rgba(255,255,255,0.08);
+            --border-strong: rgba(255,255,255,0.16);
+            --shadow-lg: 0 20px 60px -15px rgba(0,0,0,0.55);
+            --shadow-sm: 0 8px 24px -10px rgba(0,0,0,0.4);
+
+            /* ---- Text ---- */
+            --text-main: #eef2f7;
+            --text-muted: #8b97a7;
+            --text-faint: #5c6779;
+
+            /* ---- Thermal system ---- */
+            --cold: #4fa6ff;
+            --good: #2bd99f;
+            --hot: #ff6a4d;
+            --accent: #4fa6ff;
+
+            /* ---- Fonts ---- */
+            --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+            --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+        .hero, .panel { scroll-margin-top: 84px; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            margin: 0;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* ---------------- Ambient thermal glow ---------------- */
+        .ambient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .ambient span {
+            position: absolute;
+            width: 46vw;
+            height: 46vw;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.28;
+            transition: opacity 0.6s ease;
+            animation: drift 16s ease-in-out infinite alternate;
+        }
+        .glow-cold { top: -14vw; left: -10vw; background: var(--cold); }
+        .glow-hot { bottom: -16vw; right: -8vw; background: var(--hot); animation-delay: -8s; }
+        .glow-good { top: 30vw; left: 40vw; width: 30vw; height: 30vw; background: var(--good); opacity: 0.14; }
+
+        @keyframes drift {
+            from { transform: translate(0, 0) scale(1); }
+            to { transform: translate(3vw, 2vw) scale(1.08); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ambient span { animation: none; }
+        }
+
+        /* ---------------- Shell / layout ---------------- */
+        .app-shell {
+            position: relative;
+            z-index: 1;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 24px 80px;
+        }
+
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 24px;
+            margin: 0 -24px 0;
+            background: rgba(9, 12, 17, 0.72);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; }
+
+        .brand-mark {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(145deg, var(--cold), var(--good));
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 16px -4px rgba(79,166,255,0.5);
+        }
+        .brand-mark svg { width: 19px; height: 19px; }
+
+        .brand-word {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.02rem;
+            letter-spacing: -0.2px;
+            color: var(--text-main);
+            line-height: 1.1;
+        }
+        .brand-sub {
+            font-size: 0.68rem;
+            color: var(--text-faint);
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .unit-toggle {
+            display: flex;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 3px;
+            flex-shrink: 0;
+        }
+        .unit-toggle button {
+            border: none;
+            background: transparent;
+            padding: 7px 15px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-radius: 7px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .unit-toggle button.active {
+            background: var(--surface-3);
+            color: var(--text-main);
+            box-shadow: inset 0 0 0 1px var(--border-strong);
+        }
+        .unit-toggle button:hover:not(.active) { color: var(--text-main); }
+
+        /* ---------------- Nav ---------------- */
+        .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        .site-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav-link {
+            position: relative;
+            font-family: var(--font-display);
+            font-size: 0.86rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: color 0.2s ease, background 0.2s ease;
+            white-space: nowrap;
+        }
+        .nav-link:hover { color: var(--text-main); background: var(--surface-2); }
+        .nav-link.active { color: var(--text-main); }
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            left: 14px; right: 14px; bottom: 2px;
+            height: 2px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--cold), var(--good));
+        }
+
+        .nav-toggle {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .nav-toggle span {
+            width: 16px; height: 2px;
+            margin: 0 auto;
+            background: var(--text-main);
+            border-radius: 2px;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        .nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+        .nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+        .nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+        .site-nav-mobile {
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            width: 100%;
+            padding-top: 14px;
+            margin-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+        .site-nav-mobile.open { display: flex; }
+        .site-nav-mobile .nav-link { padding: 10px 12px; }
+        .site-nav-mobile .nav-link.active { background: var(--surface-2); }
+        .site-nav-mobile .nav-link.active::after { display: none; }
+
+        @media (max-width: 780px) {
+            .site-header { flex-wrap: wrap; }
+            .site-nav { display: none; }
+            .nav-toggle { display: flex; }
+        }
+
+        /* ---------------- Hero ---------------- */
+        .hero {
+            padding: 56px 0 36px;
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto;
+            opacity: 0;
+            animation: rise 0.7s ease forwards;
+        }
+        .eyebrow {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--good);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .eyebrow::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--good);
+            box-shadow: 0 0 0 4px rgba(43,217,159,0.18);
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(1.8rem, 4vw, 2.7rem);
+            font-weight: 700;
+            letter-spacing: -0.8px;
+            line-height: 1.15;
+            margin: 0 0 14px;
+        }
+        .hero h1 em {
+            font-style: normal;
+            background: linear-gradient(120deg, var(--cold), var(--good));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .hero p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ---------------- Panels (shared) ---------------- */
+        .panel {
+            background: linear-gradient(180deg, var(--surface), var(--bg-2));
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow-sm);
+            padding: 26px;
+            opacity: 0;
+            animation: rise 0.7s ease forwards;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .panel-head h2 {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            margin: 0;
+        }
+        .panel-eyebrow {
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
+            font-weight: 600;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+        }
+
+        .calc-grid {
+            display: grid;
+            grid-template-columns: minmax(260px, 340px) 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 860px) {
+            .calc-grid { grid-template-columns: 1fr; }
+        }
+
+        .stack { display: flex; flex-direction: column; gap: 18px; }
+
+        /* ---------------- Fields ---------------- */
+        .field { display: flex; flex-direction: column; gap: 8px; }
+
+        label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        select, input[type="number"] {
+            padding: 13px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface-2);
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            color: var(--text-main);
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            font-weight: 500;
+            width: 100%;
+        }
+        select { cursor: pointer; }
+        select:hover, input[type="number"]:hover { border-color: rgba(255,255,255,0.28); }
+
+        select:focus, input[type="number"]:focus {
+            border-color: var(--accent);
+            background: var(--surface-3);
+            box-shadow: 0 0 0 4px rgba(79, 166, 255, 0.18);
+        }
+
+        input[type="number"]:invalid,
+        input.input-error {
+            border-color: var(--hot);
+            box-shadow: 0 0 0 4px rgba(255, 106, 77, 0.15);
+        }
+
+        .field-error {
+            font-size: 0.74rem;
+            color: var(--hot);
+            font-weight: 600;
+            min-height: 1em;
+        }
+
+        /* ---------------- Thermal slider ---------------- */
+        .temp-row {
+            background: var(--surface-2);
+            padding: 20px 18px 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+        .temp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 26px;
+        }
+        .temp-header label { margin-bottom: 0; }
+
+        .slider-track-wrap { position: relative; padding-top: 6px; }
+
+        #temp-value {
+            position: absolute;
+            top: -30px;
+            left: var(--thumb-pct, 50%);
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 3px 10px;
+            border-radius: 8px;
+            background: var(--surface-3);
+            border: 1px solid var(--border-strong);
+            transition: color 0.2s ease, left 0.08s linear;
+            white-space: nowrap;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 10px;
+            border-radius: 10px;
+            background: linear-gradient(to right,
+                #2f6fd6 0%, var(--cold) 22%, var(--good) 44%, var(--good) 56%,
+                #ffb08a 76%, var(--hot) 92%, #c73f22 100%);
+            outline: none;
+            box-shadow: inset 0 1px 6px rgba(0,0,0,0.45);
+            margin-top: 4px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: #0c1017;
+            border: 3px solid var(--text-main);
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #0c1017; border: 3px solid var(--text-main); cursor: pointer;
+        }
+        input[type="range"]:focus-visible { box-shadow: 0 0 0 4px rgba(79,166,255,0.28); }
+
+        .temp-scale {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
+            color: var(--text-faint);
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        /* ---------------- Chart ---------------- */
+        .chart-row {
+            background: var(--surface-2);
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        .chart-title {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        #range-chart { width: 100%; height: 110px; display: block; }
+
+        /* ---------------- Output ---------------- */
+        .output-box {
+            background: radial-gradient(120% 140% at 30% 0%, rgba(79,166,255,0.10), transparent 60%), var(--surface-2);
+            border-radius: 18px;
+            padding: 32px 28px;
+            text-align: center;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+        }
+        .output-title {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+        }
+        .output-main {
+            font-family: var(--font-mono);
+            font-size: clamp(2.6rem, 6vw, 3.6rem);
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.1;
+            letter-spacing: -1px;
+            margin: 6px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .output-sub { font-size: 1.02rem; font-weight: 600; font-family: var(--font-mono); }
+
+        .output-breakdown {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 14px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .breakdown-item strong { color: var(--text-main); font-family: var(--font-mono); font-weight: 600; }
+
+        /* ---------------- Trip planner ---------------- */
+        .trip-row {
+            background: var(--surface-2);
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .trip-input-line {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .trip-input-line .field { flex: 1; min-width: 180px; }
+
+        #trip-result {
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 13px 15px;
+            border-radius: 12px;
+            display: none;
+            line-height: 1.5;
+        }
+        #trip-result.show { display: block; }
+        #trip-result.ok { background: rgba(43,217,159,0.10); color: var(--good); border: 1px solid rgba(43,217,159,0.25); }
+        #trip-result.warn { background: rgba(255,106,77,0.10); color: var(--hot); border: 1px solid rgba(255,106,77,0.25); }
+
+        /* ---------------- Environmental impact panel ---------------- */
+        .impact-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+        @media (max-width: 860px) { .impact-grid { grid-template-columns: 1fr; } }
+
+        .impact-figures {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        @media (max-width: 520px) { .impact-figures { grid-template-columns: 1fr; } }
+
+        .impact-card {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+        }
+        .impact-card-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            margin-bottom: 8px;
+        }
+        .impact-card-value {
+            font-family: var(--font-mono);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--good);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+        .impact-card-value span { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+        .impact-card-note { margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); }
+
+        .impact-compare { margin-top: 16px; }
+        .compare-row { margin-bottom: 14px; }
+        .compare-row:last-child { margin-bottom: 0; }
+        .compare-label {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+        .compare-label strong { color: var(--text-main); font-weight: 600; }
+        .compare-track {
+            height: 10px;
+            border-radius: 6px;
+            background: var(--surface-3);
+            overflow: hidden;
+        }
+        .compare-fill {
+            height: 100%;
+            border-radius: 6px;
+            width: 0%;
+            transition: width 0.5s cubic-bezier(.2,.8,.2,1);
+        }
+        #petrol-emission-bar { background: linear-gradient(90deg, #ff8a63, var(--hot)); }
+        #ev-emission-bar { background: linear-gradient(90deg, #56e3b0, var(--good)); }
+
+        .impact-source {
+            margin-top: 16px;
+            font-size: 0.72rem;
+            color: var(--text-faint);
+            line-height: 1.6;
+        }
+
+        /* ---------------- Environmental Insight card ---------------- */
+        .insight-card {
+            margin-top: 24px;
+            background: linear-gradient(135deg, rgba(43,217,159,0.09), rgba(79,166,255,0.06));
+            border: 1px solid rgba(43,217,159,0.24);
+            border-radius: 16px;
+            padding: 20px 22px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            transition: border-color 0.3s ease, background 0.3s ease;
+        }
+        .insight-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, var(--good), var(--cold));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px -4px rgba(43,217,159,0.45);
+        }
+        .insight-icon svg { width: 20px; height: 20px; }
+        .insight-body { flex: 1; min-width: 0; }
+        .insight-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--good);
+            margin-bottom: 8px;
+        }
+        .insight-text {
+            font-size: 0.92rem;
+            line-height: 1.65;
+            color: var(--text-main);
+            font-variant-numeric: tabular-nums;
+        }
+        .insight-text strong {
+            font-family: var(--font-mono);
+            color: var(--good);
+            font-weight: 700;
+        }
+        @media (max-width: 560px) {
+            .insight-card { flex-direction: column; padding: 18px; }
+        }
+
+        /* ---------------- Charging panel filters & UI ---------------- */
+        .charging-filters {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+            width: 100%;
+        }
+        .charging-filters .field {
+            flex: 1 1 200px;
+        }
+
+        .charging-row {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+            width: 100%;
+        }
+        .charging-btn {
+            align-self: flex-start;
+            background: linear-gradient(135deg, var(--good), #17b489);
+            color: #04120c;
+            border: none;
+            padding: 13px 22px;
+            border-radius: 12px;
+            font-family: var(--font-body);
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+            box-shadow: 0 6px 18px -6px rgba(43,217,159,0.5);
+        }
+        .charging-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -6px rgba(43,217,159,0.6); }
+        .charging-btn:active:not(:disabled) { transform: translateY(0); }
+        .charging-btn:disabled { background: var(--surface-3); color: var(--text-faint); cursor: not-allowed; box-shadow: none; }
+
+        .charging-status {
+            font-size: 0.86rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            min-height: 1.2em;
+        }
+        .charging-status.error { color: var(--hot); }
+        .charging-status.ok { color: var(--good); }
+
+        .charging-map {
+            width: 100%;
+            height: 320px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .charging-directions {
+            width: 100%;
+            max-height: 220px;
+            overflow-y: auto;
+            font-size: 0.86rem;
+            color: var(--text-main);
+            background: var(--surface-2);
+            border-radius: 12px;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+        .charging-directions.show { display: block; }
+        .charging-directions ol { margin: 8px 0 0 18px; padding: 0; }
+        .charging-directions li { margin-bottom: 6px; color: var(--text-muted); }
+        .charging-directions strong { color: var(--text-main); }
+
+        /* ---------------- Footer ---------------- */
+        .site-footer {
+            margin-top: 8px;
+            font-size: 0.78rem;
+            color: var(--text-faint);
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .site-footer button {
+            border: none;
+            background: none;
+            color: var(--accent);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.78rem;
+            text-decoration: underline;
+            font-family: var(--font-body);
+        }
+
+        /* ---------------- Section stagger ---------------- */
+        .stagger-1 { animation-delay: 0.05s; }
+        .stagger-2 { animation-delay: 0.15s; }
+        .stagger-3 { animation-delay: 0.25s; }
+        .stagger-4 { animation-delay: 0.35s; }
+
+        .page-stack { display: flex; flex-direction: column; gap: 20px; }
+
+        @media (max-width: 480px) {
+            .output-main { font-size: 2.1rem; }
+            .app-shell { padding: 0 16px 60px; }
+            .site-header { padding: 14px 16px; margin: 0 -16px 0; }
+            .panel { padding: 20px; border-radius: 16px; }
+            .hero { padding: 40px 0 28px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient" aria-hidden="true">
+        <span class="glow-cold" id="glow-cold"></span>
+        <span class="glow-hot" id="glow-hot"></span>
+        <span class="glow-good"></span>
+    </div>
+
+    <div class="app-shell">
+
+        <header class="site-header">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 2L4 14H11L10 22L20 9H12.5L13 2Z" fill="#04121a"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="brand-word">Range Intelligence</div>
+                    <div class="brand-sub">EV Weather Calculator</div>
+                </div>
+            </div>
+
+            <nav class="site-nav" aria-label="Primary">
+                <a href="#calculator" class="nav-link active">Calculator</a>
+                <a href="#carbon" class="nav-link">Carbon</a>
+                <a href="#charging" class="nav-link">Charging</a>
+                <a href="trip-planner.html" class="nav-link">Trip Planner</a>
+            </nav>
+
+            <div class="header-actions">
+                <div class="unit-toggle" role="group" aria-label="Distance unit">
+                    <button type="button" id="unit-km" class="active" aria-pressed="true">km</button>
+                    <button type="button" id="unit-mi" aria-pressed="false">mi</button>
+                </div>
+                <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav-mobile">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+
+            <nav class="site-nav-mobile" id="site-nav-mobile" aria-label="Primary mobile">
+                <a href="#calculator" class="nav-link">Calculator</a>
+                <a href="#carbon" class="nav-link">Carbon</a>
+                <a href="#charging" class="nav-link">Charging</a>
+                <a href="trip-planner.html" class="nav-link">Trip Planner</a>
+            </nav>
+        </header>
+
+        <section class="hero" id="home">
+            <span class="eyebrow">Smart EV Range Predictor</span>
+            <h1>Know your <em>real</em> range, in real weather.</h1>
+            <p>Battery specs never survive contact with a heatwave or a cold snap. Dial in your car, your driving style, and the temperature outside — see exactly what's left.</p>
+        </section>
+
+        <div class="page-stack">
+
+            <!-- Range Predictor Panel -->
+            <section class="panel stagger-1" id="calculator" aria-labelledby="range-panel-heading">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">01 · Range Predictor</div>
+                        <h2 id="range-panel-heading">Estimate today's range</h2>
+                    </div>
+                </div>
+
+                <div class="calc-grid">
+                    <div class="stack">
+                        <div class="field">
+                            <label for="car-model">Car Model &amp; Battery</label>
+                            <select id="car-model">
+                                <optgroup label="Mahindra">
+                                    <option value="79,13.8" selected>Mahindra XEV 9e - Pack Two/Three (79 kWh)</option>
+                                    <option value="59,13.5">Mahindra XEV 9e - Pack One (59 kWh)</option>
+                                    <option value="79,13.5">Mahindra BE 6e - Pack Two (79 kWh)</option>
+                                    <option value="59,13.2">Mahindra BE 6e - Pack One (59 kWh)</option>
+                                    <option value="39.4,14.5">Mahindra XUV400 EV (39.4 kWh)</option>
+                                </optgroup>
+                                <optgroup label="Tata Motors">
+                                    <option value="55,12.8">Tata Curvv EV (55 kWh)</option>
+                                    <option value="40.5,12.5">Tata Nexon EV Long Range (40.5 kWh)</option>
+                                    <option value="35,12.2">Tata Punch EV (35 kWh)</option>
+                                    <option value="24,11.8">Tata Tiago EV (24 kWh)</option>
+                                </optgroup>
+                                <optgroup label="Tesla">
+                                    <option value="75,12.5">Tesla Model 3 - Long Range (75 kWh)</option>
+                                    <option value="60,12.2">Tesla Model 3 - RWD (60 kWh)</option>
+                                    <option value="75,13.8">Tesla Model Y - Long Range (75 kWh)</option>
+                                </optgroup>
+                                <optgroup label="BYD">
+                                    <option value="82.5,14.0">BYD Seal - Extended Range (82.5 kWh)</option>
+                                    <option value="60.4,14.2">BYD Atto 3 (60.4 kWh)</option>
+                                </optgroup>
+                                <optgroup label="Kia &amp; Hyundai">
+                                    <option value="77.4,14.2">Kia EV6 - GT-Line (77.4 kWh)</option>
+                                    <option value="99.8,18.5">Kia EV9 - AWD (99.8 kWh)</option>
+                                    <option value="72.6,13.8">Hyundai Ioniq 5 (72.6 kWh)</option>
+                                </optgroup>
+                                <optgroup label="BMW">
+                                    <option value="80.7,14.0">BMW i4 - eDrive40 (80.7 kWh)</option>
+                                    <option value="111.5,18.8">BMW iX - xDrive50 (111.5 kWh)</option>
+                                </optgroup>
+                                <optgroup label="Volvo">
+                                    <option value="78,16.2">Volvo XC40 / EX40 Recharge (78 kWh)</option>
+                                    <option value="69,14.8">Volvo EX30 - Extended Range (69 kWh)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div class="field">
+                            <label for="battery-percent">Current Battery %</label>
+                            <input type="number" id="battery-percent" min="0" max="100" value="100" step="1" inputmode="numeric">
+                            <div class="field-error" id="battery-error" aria-live="polite"></div>
+                        </div>
+
+                        <div class="field">
+                            <label for="avg-speed">Avg Driving Speed (km/h)</label>
+                            <input type="number" id="avg-speed" min="10" max="160" value="65" step="1" inputmode="numeric">
+                            <div class="field-error" id="speed-error" aria-live="polite"></div>
+                        </div>
+
+                        <div class="temp-row">
+                            <div class="temp-header">
+                                <label for="temperature">Ambient Temperature (°C)</label>
+                            </div>
+                            <div class="slider-track-wrap">
+                                <span id="temp-value">25°C</span>
+                                <input type="range" id="temperature" min="0" max="50" value="25"
+                                       aria-valuemin="0" aria-valuemax="50" aria-valuenow="25" aria-valuetext="25 degrees Celsius, ideal">
+                            </div>
+                            <div class="temp-scale">
+                                <span>0° Cold</span>
+                                <span>22–28° Ideal</span>
+                                <span>50° Hot</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stack">
+                        <div class="output-box" role="status" aria-live="polite">
+                            <div class="output-title">Estimated Real-World Range</div>
+                            <div class="output-main" id="final-range">-- km</div>
+                            <div class="output-sub" id="range-loss">Expected Decrease: -- km</div>
+
+                            <div class="output-breakdown">
+                                <div class="breakdown-item">Est. Consumption: <strong id="consumption-rate">-- kWh/100km</strong></div>
+                                <div class="breakdown-item">Aero Drag Impact: <strong id="speed-impact">--</strong></div>
+                                <div class="breakdown-item">HVAC / Thermal Overhead: <strong id="temp-impact">--</strong></div>
+                            </div>
+                        </div>
+
+                        <div class="chart-row">
+                            <div class="chart-title">Range vs. Temperature at Current Settings</div>
+                            <canvas id="range-chart" role="img" aria-label="Line chart of estimated range from 0 to 50 degrees Celsius"></canvas>
+                        </div>
+
+                        <div class="trip-row">
+                            <div class="chart-title" style="margin-bottom:0;">Can I make this trip?</div>
+                            <div class="trip-input-line">
+                                <div class="field">
+                                    <label for="trip-distance">Trip Distance (<span id="trip-unit-label">km</span>)</label>
+                                    <input type="number" id="trip-distance" min="0" step="1" inputmode="numeric" placeholder="e.g. 350">
+                                </div>
+                            </div>
+                            <div id="trip-result"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Environmental Impact Panel -->
+            <section class="panel stagger-2" id="carbon" aria-labelledby="impact-panel-heading">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">02 · Environmental Impact</div>
+                        <h2 id="impact-panel-heading">Your Carbon Savings Dashboard</h2>
+                    </div>
+                </div>
+
+                <div class="impact-grid">
+                    <div class="field">
+                        <label for="annual-distance">Annual Driving Distance (<span id="annual-distance-unit">km</span>)</label>
+                        <input type="number" id="annual-distance" min="0" step="100" inputmode="numeric" placeholder="e.g. 15000">
+                        <div class="impact-source">
+                            Uses your selected car's rated consumption vs. an average petrol car, on India's grid electricity mix.
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="impact-figures">
+                            <div class="impact-card">
+                                <div class="impact-card-label">CO₂ Saved / Year</div>
+                                <div class="impact-card-value" id="impact-co2-figure">–<span> kg</span></div>
+                                <div class="impact-card-note" id="impact-co2-note">Enter your annual distance</div>
+                            </div>
+                            <div class="impact-card">
+                                <div class="impact-card-label">Equivalent To</div>
+                                <div class="impact-card-value" id="impact-trees-figure">–<span> trees</span></div>
+                                <div class="impact-card-note">mature trees' worth of CO₂ absorbed per year</div>
+                            </div>
+                        </div>
+
+                        <div class="impact-compare" id="impact-compare" style="display:none;">
+                            <div class="compare-row">
+                                <div class="compare-label"><span>Petrol car</span><strong id="petrol-emission-value">-- kg CO₂</strong></div>
+                                <div class="compare-track"><div class="compare-fill" id="petrol-emission-bar"></div></div>
+                            </div>
+                            <div class="compare-row">
+                                <div class="compare-label"><span>Your EV</span><strong id="ev-emission-value">-- kg CO₂</strong></div>
+                                <div class="compare-track"><div class="compare-fill" id="ev-emission-bar"></div></div>
+                            </div>
+                        </div>
+
+                        <div class="impact-source">
+                            Assumes 2.31 kg CO₂ per litre of petrol burned, an average petrol car at ~6.5 L/100km real-world, and India's national grid emission factor of ~0.71 kg CO₂/kWh (CEA CO₂ Baseline Database). A mature tree absorbs roughly 21 kg CO₂ per year (EPA / Arbor Day Foundation).
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insight-card" id="insight-card">
+                    <div class="insight-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#04120c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 20A7 7 0 0 1 4 13c0-4 4-8 7-9 3 1 7 5 7 9a7 7 0 0 1-7 7Z"></path>
+                            <path d="M11 20V10"></path>
+                        </svg>
+                    </div>
+                    <div class="insight-body">
+                        <div class="insight-label">Environmental Insight</div>
+                        <div class="insight-text" id="insight-text">
+                            Enter your annual driving distance above to see your personalized environmental impact summary.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charging Panel (UPDATED WITH RADIUS & CHARGER TYPE SELECTORS) -->
+            <section class="panel stagger-3" id="charging" aria-labelledby="charging-panel-heading">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">03 · Charging Network</div>
+                        <h2 id="charging-panel-heading">Find your next charge</h2>
+                    </div>
+                </div>
+
+                <div class="charging-filters">
+                    <div class="field">
+                        <label for="charging-radius">Search Radius</label>
+                        <select id="charging-radius">
+                            <option value="5000">5 km</option>
+                            <option value="10000" selected>10 km</option>
+                            <option value="25000">25 km</option>
+                            <option value="50000">50 km</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="charger-type">Charger Type / Speed</label>
+                        <select id="charger-type">
+                            <option value="all" selected>All Chargers</option>
+                            <option value="fast">DC Fast Charger</option>
+                            <option value="ccs2">CCS2</option>
+                            <option value="type2">Type 2 (AC)</option>
+                            <option value="chademo">CHAdeMO</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="charging-row" id="charging-row">
+                    <button type="button" id="find-charging-btn" class="charging-btn">
+                        ⚡ Find Nearest EV Charging Station
+                    </button>
+                    <div id="charging-status" class="charging-status"></div>
+                    <div id="charging-map" class="charging-map" style="display:none;"></div>
+                    <div id="charging-directions" class="charging-directions"></div>
+                </div>
+            </section>
+
+            <footer class="site-footer stagger-4">
+                <span id="save-status">Settings save automatically on this device.</span>
+                <button type="button" id="reset-defaults">Reset to defaults</button>
+            </footer>
+
+        </div>
+    </div>
+
+    <!-- EV Range Calculator JS -->
+    <script>
+    (function () {
+        'use strict';
+
+        var STORAGE_KEY = 'evRangeCalculator.settings.v2';
+        var KM_TO_MI = 0.621371;
+        var SPEED_MIN = 10, SPEED_MAX = 160;
+        var BATTERY_MIN = 0, BATTERY_MAX = 100;
+
+        var DEFAULTS = { model: '79,13.8', battery: 100, speed: 65, temp: 25, unit: 'km' };
+
+        var el = {
+            model: document.getElementById('car-model'),
+            battery: document.getElementById('battery-percent'),
+            speed: document.getElementById('avg-speed'),
+            temp: document.getElementById('temperature'),
+            tempValue: document.getElementById('temp-value'),
+            batteryError: document.getElementById('battery-error'),
+            speedError: document.getElementById('speed-error'),
+            finalRange: document.getElementById('final-range'),
+            rangeLoss: document.getElementById('range-loss'),
+            consumptionRate: document.getElementById('consumption-rate'),
+            speedImpact: document.getElementById('speed-impact'),
+            tempImpact: document.getElementById('temp-impact'),
+            chart: document.getElementById('range-chart'),
+            unitKmBtn: document.getElementById('unit-km'),
+            unitMiBtn: document.getElementById('unit-mi'),
+            tripDistance: document.getElementById('trip-distance'),
+            tripUnitLabel: document.getElementById('trip-unit-label'),
+            tripResult: document.getElementById('trip-result'),
+            resetBtn: document.getElementById('reset-defaults'),
+        };
+
+        var state = { unit: 'km' };
+
+        function computeForTemp(temp, batteryCapacity, baseConsumption, soc, speed) {
+            var usableKwh = batteryCapacity * (soc / 100);
+
+            var refSpeed = 60.0;
+            var rollingComponent = baseConsumption * 0.65;
+            var dragComponent = baseConsumption * 0.35 * Math.pow(speed / refSpeed, 2);
+            var lowSpeedOverhead = speed < 30 ? (30 - speed) * 0.15 : 0;
+            var speedConsumption = rollingComponent + dragComponent + lowSpeedOverhead;
+
+            var hvacPowerKw = 0.3;
+            var batteryDerating = 1.0;
+
+            if (temp > 28) {
+                hvacPowerKw += 0.35 + Math.pow(temp - 28, 1.25) * 0.09;
+            } else if (temp < 22) {
+                hvacPowerKw += 0.45 + Math.pow(22 - temp, 1.2) * 0.12;
+                batteryDerating = Math.max(0.82, 1.0 - (22 - temp) * 0.006);
+            }
+
+            var hvacConsumption = (hvacPowerKw / speed) * 100;
+            var totalConsumption = speedConsumption + hvacConsumption;
+
+            var adjustedUsableKwh = usableKwh * batteryDerating;
+            var meanRange = (adjustedUsableKwh / totalConsumption) * 100;
+
+            return {
+                meanRange: meanRange,
+                minRange: meanRange * 0.95,
+                maxRange: meanRange * 1.05,
+                totalConsumption: totalConsumption,
+                speedConsumption: speedConsumption,
+                hvacConsumption: hvacConsumption,
+                usableKwh: usableKwh
+            };
+        }
+
+        function validateInputs() {
+            var ok = true;
+            var soc = parseFloat(el.battery.value);
+            var speed = parseFloat(el.speed.value);
+
+            if (isNaN(soc) || soc < BATTERY_MIN || soc > BATTERY_MAX) {
+                el.batteryError.textContent = 'Enter a value between 0 and 100.';
+                el.battery.classList.add('input-error');
+                ok = false;
+            } else {
+                el.batteryError.textContent = '';
+                el.battery.classList.remove('input-error');
+            }
+
+            if (isNaN(speed) || speed < SPEED_MIN || speed > SPEED_MAX) {
+                el.speedError.textContent = 'Enter a value between ' + SPEED_MIN + ' and ' + SPEED_MAX + '.';
+                el.speed.classList.add('input-error');
+                ok = false;
+            } else {
+                el.speedError.textContent = '';
+                el.speed.classList.remove('input-error');
+            }
+
+            return ok;
+        }
+
+        function clamp(value, min, max) {
+            if (isNaN(value)) return min;
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function drawChart(batteryCapacity, baseConsumption, soc, speed, currentTemp) {
+            var canvas = el.chart;
+            var dpr = window.devicePixelRatio || 1;
+            var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth;
+            var cssHeight = 110;
+            canvas.width = cssWidth * dpr;
+            canvas.height = cssHeight * dpr;
+            canvas.style.height = cssHeight + 'px';
+            var ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+            var padL = 34, padR = 10, padT = 10, padB = 18;
+            var plotW = cssWidth - padL - padR;
+            var plotH = cssHeight - padT - padB;
+
+            var points = [];
+            var maxR = 0;
+            for (var t = 0; t <= 50; t += 2) {
+                var r = computeForTemp(t, batteryCapacity, baseConsumption, soc, speed).meanRange;
+                points.push({ t: t, r: r });
+                if (r > maxR) maxR = r;
+            }
+            maxR = Math.ceil((maxR * 1.1) / 50) * 50;
+            if (maxR <= 0) maxR = 100;
+
+            function xFor(t) { return padL + (t / 50) * plotW; }
+            function yFor(r) { return padT + plotH - (r / maxR) * plotH; }
+
+            ctx.strokeStyle = '#eef2f6';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px -apple-system, Arial, sans-serif';
+            ctx.textAlign = 'right';
+            var steps = 3;
+            for (var i = 0; i <= steps; i++) {
+                var val = (maxR / steps) * i;
+                var y = yFor(val);
+                ctx.beginPath();
+                ctx.moveTo(padL, y);
+                ctx.lineTo(padL + plotW, y);
+                ctx.stroke();
+                ctx.fillText(Math.round(val), padL - 6, y + 3);
+            }
+
+            ctx.beginPath();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#3b82f6';
+            points.forEach(function (p, idx) {
+                var x = xFor(p.t), y = yFor(p.r);
+                if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(16,185,129,0.08)';
+            ctx.fillRect(xFor(22), padT, xFor(28) - xFor(22), plotH);
+
+            var curR = computeForTemp(currentTemp, batteryCapacity, baseConsumption, soc, speed).meanRange;
+            var cx = xFor(currentTemp), cy = yFor(curR);
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(59,130,246,0.35)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.moveTo(cx, padT);
+            ctx.lineTo(cx, padT + plotH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.fillStyle = currentTemp > 28 ? '#dc2626' : (currentTemp < 22 ? '#2563eb' : '#10b981');
+            ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.textAlign = 'center';
+            [0, 25, 50].forEach(function (t) {
+                ctx.fillText(t + '°', xFor(t), cssHeight - 3);
+            });
+        }
+
+        function updateTripPlanner(meanRangeKm, socPercent) {
+            var raw = el.tripDistance.value;
+            if (raw === '' || raw === null) {
+                el.tripResult.classList.remove('show', 'ok', 'warn');
+                return;
+            }
+            var distance = parseFloat(raw);
+            if (isNaN(distance) || distance <= 0) {
+                el.tripResult.classList.remove('show', 'ok', 'warn');
+                return;
+            }
+            var distanceKm = state.unit === 'mi' ? distance / KM_TO_MI : distance;
+            var neededPercent = (distanceKm / meanRangeKm) * 100;
+            var bufferPercent = socPercent - neededPercent;
+
+            el.tripResult.classList.add('show');
+            if (bufferPercent >= 15) {
+                el.tripResult.className = 'show ok';
+                el.tripResult.textContent = '✓ Comfortable margin: this trip uses about ' +
+                    neededPercent.toFixed(0) + '% of your battery, leaving ~' + bufferPercent.toFixed(0) +
+                    '% in reserve at current conditions.';
+            } else if (bufferPercent >= 0) {
+                el.tripResult.className = 'show warn';
+                el.tripResult.textContent = '⚠ Tight margin: this trip needs about ' +
+                    neededPercent.toFixed(0) + '% of your battery, leaving only ~' + bufferPercent.toFixed(0) +
+                    '% in reserve. Consider a charging stop.';
+            } else {
+                el.tripResult.className = 'show warn';
+                el.tripResult.textContent = '⚠ Not reachable on current charge: you would need about ' +
+                    neededPercent.toFixed(0) + '% battery, ' + Math.abs(bufferPercent).toFixed(0) +
+                    '% more than you have. Plan a charging stop.';
+            }
+        }
+
+        function calculateEVRange() {
+            var parts = el.model.value.split(',').map(parseFloat);
+            var batteryCapacity = parts[0], baseConsumption = parts[1];
+
+            var validationOk = validateInputs();
+
+            var soc = clamp(parseFloat(el.battery.value), BATTERY_MIN, BATTERY_MAX);
+            var speed = clamp(parseFloat(el.speed.value), SPEED_MIN, SPEED_MAX);
+            var temp = parseFloat(el.temp.value);
+
+            var result = computeForTemp(temp, batteryCapacity, baseConsumption, soc, speed);
+            var idealResult = computeForTemp(25, batteryCapacity, baseConsumption, soc, 60);
+
+            var minRange = Math.round(result.minRange);
+            var maxRange = Math.round(result.maxRange);
+            var minLoss = Math.max(0, Math.round(idealResult.minRange - minRange));
+            var maxLoss = Math.max(0, Math.round(idealResult.maxRange - maxRange));
+
+            var unitLabel = state.unit === 'mi' ? 'mi' : 'km';
+            var convert = function (km) { return state.unit === 'mi' ? km * KM_TO_MI : km; };
+
+            var dispMin = Math.round(convert(minRange));
+            var dispMax = Math.round(convert(maxRange));
+            var dispMinLoss = Math.round(convert(minLoss));
+            var dispMaxLoss = Math.round(convert(maxLoss));
+
+            el.finalRange.textContent = validationOk ?
+                (dispMin + ' \u2013 ' + dispMax + ' ' + unitLabel) : '-- ' + unitLabel;
+
+            if (maxLoss > 5) {
+                el.rangeLoss.textContent = 'Expected Decrease: -' + dispMinLoss + ' to -' + dispMaxLoss + ' ' + unitLabel;
+                el.rangeLoss.style.color = 'var(--hot)';
+            } else {
+                el.rangeLoss.textContent = 'Operating near optimal efficiency';
+                el.rangeLoss.style.color = 'var(--good)';
+            }
+
+            el.consumptionRate.textContent = result.totalConsumption.toFixed(1) + ' kWh/100km';
+
+            var speedRatio = (result.speedConsumption / baseConsumption - 1) * 100;
+            el.speedImpact.textContent = speedRatio > 0 ?
+                ('+' + Math.round(speedRatio) + '% energy draw') : 'Optimal speed';
+
+            if (temp > 28) {
+                el.tempImpact.textContent = '+' + result.hvacConsumption.toFixed(1) + ' kWh/100km (A/C Cooling)';
+            } else if (temp < 22) {
+                el.tempImpact.textContent = '+' + result.hvacConsumption.toFixed(1) + ' kWh/100km (Heating)';
+            } else {
+                el.tempImpact.textContent = 'Minimal HVAC load';
+            }
+
+            el.tempValue.textContent = temp + '\u00B0C';
+            el.tempValue.style.color = temp > 28 ? 'var(--hot)' : (temp < 22 ? 'var(--cold)' : 'var(--good)');
+            el.temp.setAttribute('aria-valuenow', temp);
+            var band = temp > 28 ? 'hot' : (temp < 22 ? 'cold' : 'ideal');
+            el.temp.setAttribute('aria-valuetext', temp + ' degrees Celsius, ' + band);
+
+            drawChart(batteryCapacity, baseConsumption, soc, speed, temp);
+            updateTripPlanner(result.meanRange, soc);
+            saveSettings();
+        }
+
+        function saveSettings() {
+            try {
+                var data = {
+                    model: el.model.value,
+                    battery: el.battery.value,
+                    speed: el.speed.value,
+                    temp: el.temp.value,
+                    unit: state.unit
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            } catch (e) { }
+        }
+
+        function loadSettings() {
+            var data = null;
+            try {
+                var raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) data = JSON.parse(raw);
+            } catch (e) { }
+            return data || DEFAULTS;
+        }
+
+        function applySettings(data) {
+            if (data.model) el.model.value = data.model;
+            el.battery.value = data.battery !== undefined ? data.battery : DEFAULTS.battery;
+            el.speed.value = data.speed !== undefined ? data.speed : DEFAULTS.speed;
+            el.temp.value = data.temp !== undefined ? data.temp : DEFAULTS.temp;
+            setUnit(data.unit === 'mi' ? 'mi' : 'km');
+        }
+
+        function setUnit(unit) {
+            state.unit = unit;
+            var isMi = unit === 'mi';
+            el.unitKmBtn.classList.toggle('active', !isMi);
+            el.unitMiBtn.classList.toggle('active', isMi);
+            el.unitKmBtn.setAttribute('aria-pressed', String(!isMi));
+            el.unitMiBtn.setAttribute('aria-pressed', String(isMi));
+            el.tripUnitLabel.textContent = isMi ? 'mi' : 'km';
+        }
+
+        el.model.addEventListener('change', calculateEVRange);
+        el.battery.addEventListener('input', calculateEVRange);
+        el.speed.addEventListener('input', calculateEVRange);
+        el.tripDistance.addEventListener('input', calculateEVRange);
+        el.temp.addEventListener('input', calculateEVRange);
+
+        el.unitKmBtn.addEventListener('click', function () { setUnit('km'); calculateEVRange(); });
+        el.unitMiBtn.addEventListener('click', function () { setUnit('mi'); calculateEVRange(); });
+
+        el.resetBtn.addEventListener('click', function () {
+            applySettings(DEFAULTS);
+            el.tripDistance.value = '';
+            calculateEVRange();
+        });
+
+        window.addEventListener('resize', calculateEVRange);
+
+        applySettings(loadSettings());
+        calculateEVRange();
+    })();
+    </script>
+
+    <!-- UPDATED CHARGING NETWORK JS WITH RADIUS & CONNECTOR FILTER SUPPORT -->
+    <script>
+    (function () {
+        'use strict';
+
+        var GOOGLE_MAPS_API_KEY = 'AIzaSyC8ZI6LirwtLQDxePA7yQdGe3xUmIxo7Fs';
+
+        var btn = document.getElementById('find-charging-btn');
+        var statusEl = document.getElementById('charging-status');
+        var mapEl = document.getElementById('charging-map');
+        var directionsEl = document.getElementById('charging-directions');
+
+        var radiusSelect = document.getElementById('charging-radius');
+        var chargerTypeSelect = document.getElementById('charger-type');
+
+        var DEFAULT_LABEL = '⚡ Find Nearest EV Charging Station';
+
+        var mapsLoaded = false;
+        var mapsLoading = false;
+        var map, directionsService, directionsRenderer, placesService;
+        var currentMarkers = [];
+        var lastUserLocation = null;
+
+        function setStatus(text, type) {
+            statusEl.textContent = text || '';
+            statusEl.className = 'charging-status' + (type ? ' ' + type : '');
+        }
+
+        function resetButton() {
+            btn.disabled = false;
+            btn.textContent = DEFAULT_LABEL;
+        }
+
+        function clearMapMarkers() {
+            currentMarkers.forEach(function (m) { m.setMap(null); });
+            currentMarkers = [];
+            if (directionsRenderer) {
+                directionsRenderer.set('directions', null);
+            }
+            directionsEl.classList.remove('show');
+            directionsEl.innerHTML = '';
+        }
+
+        window.gm_authFailure = function () {
+            mapsLoading = false;
+            setStatus('Google Maps could not be loaded. Check API key and Places API status.', 'error');
+            resetButton();
+        };
+
+        function loadGoogleMapsScript(callback) {
+            if (mapsLoaded && window.google && window.google.maps) {
+                callback();
+                return;
+            }
+            if (mapsLoading) {
+                var check = setInterval(function () {
+                    if (mapsLoaded) {
+                        clearInterval(check);
+                        callback();
+                    }
+                }, 200);
+                return;
+            }
+            if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
+                setStatus('Add your Google Maps API key in the script (GOOGLE_MAPS_API_KEY) to use this feature.', 'error');
+                resetButton();
+                return;
+            }
+
+            mapsLoading = true;
+            window.__initChargingMapCallback = function () {
+                mapsLoaded = true;
+                mapsLoading = false;
+                callback();
+            };
+
+            var script = document.createElement('script');
+            script.src = 'https://maps.googleapis.com/maps/api/js?key=' +
+                encodeURIComponent(GOOGLE_MAPS_API_KEY) +
+                '&libraries=places&callback=__initChargingMapCallback';
+            script.async = true;
+            script.defer = true;
+            script.onerror = function () {
+                mapsLoading = false;
+                setStatus('Could not reach Google Maps. Check your internet connection.', 'error');
+                resetButton();
+            };
+            document.head.appendChild(script);
+        }
+
+        function initMapAt(userLocation) {
+            mapEl.style.display = 'block';
+
+            if (!map) {
+                map = new google.maps.Map(mapEl, {
+                    center: userLocation,
+                    zoom: 12
+                });
+                directionsService = new google.maps.DirectionsService();
+                directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
+                placesService = new google.maps.places.PlacesService(map);
+            } else {
+                map.setCenter(userLocation);
+            }
+
+            clearMapMarkers();
+
+            var userMarker = new google.maps.Marker({
+                position: userLocation,
+                map: map,
+                title: 'Your location',
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: '#ffffff'
+                }
+            });
+            currentMarkers.push(userMarker);
+
+            findNearestChargingStation(userLocation);
+        }
+
+        function getDistanceSq(loc1, loc2) {
+            var lat1 = loc1.lat();
+            var lng1 = loc1.lng();
+            var lat2 = typeof loc2.lat === 'function' ? loc2.lat() : loc2.lat;
+            var lng2 = typeof loc2.lng === 'function' ? loc2.lng() : loc2.lng;
+            var dLat = lat1 - lat2;
+            var dLng = lng1 - lng2;
+            return dLat * dLat + dLng * dLng;
+        }
+
+        function findNearestChargingStation(userLocation) {
+            var radiusMeters = parseInt(radiusSelect.value, 10) || 10000;
+            var typeVal = chargerTypeSelect.value;
+
+            var keywordStr = 'EV charging station';
+            var filterLabel = 'all chargers';
+
+            if (typeVal === 'fast') {
+                keywordStr = 'DC Fast EV charging station';
+                filterLabel = 'DC Fast chargers';
+            } else if (typeVal === 'ccs2') {
+                keywordStr = 'CCS2 EV charging station';
+                filterLabel = 'CCS2 chargers';
+            } else if (typeVal === 'type2') {
+                keywordStr = 'Type 2 EV charging station';
+                filterLabel = 'Type 2 chargers';
+            } else if (typeVal === 'chademo') {
+                keywordStr = 'CHAdeMO EV charging station';
+                filterLabel = 'CHAdeMO chargers';
+            }
+
+            setStatus('Searching for ' + filterLabel + ' within ' + (radiusMeters / 1000) + ' km…', '');
+
+            var request = {
+                location: userLocation,
+                radius: radiusMeters,
+                type: 'electric_vehicle_charging_station',
+                keyword: keywordStr
+            };
+
+            placesService.nearbySearch(request, function (results, status) {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results.length) {
+                    setStatus('No ' + filterLabel + ' found within ' + (radiusMeters / 1000) + ' km.', 'error');
+                    return;
+                }
+
+                // Sort results by geographic distance to origin
+                results.sort(function (a, b) {
+                    return getDistanceSq(a.geometry.location, userLocation) - getDistanceSq(b.geometry.location, userLocation);
+                });
+
+                var nearest = results[0];
+
+                var nearestMarker = new google.maps.Marker({
+                    position: nearest.geometry.location,
+                    map: map,
+                    title: nearest.name,
+                    icon: { url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png' }
+                });
+                currentMarkers.push(nearestMarker);
+
+                for (var i = 1; i < Math.min(results.length, 6); i++) {
+                    var m = new google.maps.Marker({
+                        position: results[i].geometry.location,
+                        map: map,
+                        title: results[i].name,
+                        icon: { url: 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png' }
+                    });
+                    currentMarkers.push(m);
+                }
+
+                getDirectionsTo(userLocation, nearest);
+            });
+        }
+
+        function getDirectionsTo(origin, place) {
+            directionsService.route({
+                origin: origin,
+                destination: place.geometry.location,
+                travelMode: google.maps.TravelMode.DRIVING
+            }, function (result, status) {
+                if (status === google.maps.DirectionsStatus.OK) {
+                    directionsRenderer.setDirections(result);
+
+                    var leg = result.routes[0].legs[0];
+                    setStatus('Nearest station: ' + place.name + ' — ' + leg.distance.text + ' (' + leg.duration.text + ' drive)', 'ok');
+
+                    var stepsHtml = '<strong>' + place.name + '</strong><br>' + (place.vicinity || '') + '<ol>';
+                    leg.steps.forEach(function (step) {
+                        stepsHtml += '<li>' + step.instructions + ' (' + step.distance.text + ')</li>';
+                    });
+                    stepsHtml += '</ol>';
+
+                    directionsEl.innerHTML = stepsHtml;
+                    directionsEl.classList.add('show');
+                } else {
+                    setStatus('Found ' + place.name + ' but could not calculate directions.', 'error');
+                }
+            });
+        }
+
+        function handleFindClick() {
+            if (!navigator.geolocation) {
+                setStatus('Geolocation is not supported by your browser.', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Locating you…';
+            setStatus('Requesting location permission…', '');
+
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    lastUserLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    resetButton();
+
+                    loadGoogleMapsScript(function () {
+                        initMapAt(lastUserLocation);
+                    });
+                },
+                function (error) {
+                    resetButton();
+                    var msg = 'Could not get your location.';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg = 'Location permission denied. Please allow location access and try again.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        msg = 'Location information is unavailable.';
+                    } else if (error.code === error.TIMEOUT) {
+                        msg = 'Location request timed out. Please try again.';
+                    }
+                    setStatus(msg, 'error');
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+            );
+        }
+
+        // Re-run search automatically when radius or charger type selection changes
+        function handleFilterChange() {
+            if (lastUserLocation && map) {
+                initMapAt(lastUserLocation);
+            }
+        }
+
+        btn.addEventListener('click', handleFindClick);
+        radiusSelect.addEventListener('change', handleFilterChange);
+        chargerTypeSelect.addEventListener('change', handleFilterChange);
+    })();
+    </script>
+
+    <!-- Carbon & Environmental Impact JS -->
+    <script>
+    (function () {
+        'use strict';
+
+        var CO2_PER_LITRE_PETROL_KG = 2.31;
+        var AVG_PETROL_L_PER_100KM = 6.5;
+        var GRID_EMISSION_FACTOR_KG_PER_KWH = 0.71;
+        var TREE_CO2_ABSORPTION_KG_PER_YEAR = 21;
+        var KM_TO_MI = 0.621371;
+
+        var modelEl = document.getElementById('car-model');
+        var distanceEl = document.getElementById('annual-distance');
+        var unitKmBtn = document.getElementById('unit-km');
+        var unitMiBtn = document.getElementById('unit-mi');
+        var distanceUnitLabel = document.getElementById('annual-distance-unit');
+
+        var co2FigureEl = document.getElementById('impact-co2-figure');
+        var co2NoteEl = document.getElementById('impact-co2-note');
+        var treesFigureEl = document.getElementById('impact-trees-figure');
+        var compareEl = document.getElementById('impact-compare');
+        var petrolValueEl = document.getElementById('petrol-emission-value');
+        var evValueEl = document.getElementById('ev-emission-value');
+        var petrolBarEl = document.getElementById('petrol-emission-bar');
+        var evBarEl = document.getElementById('ev-emission-bar');
+
+        function currentUnit() {
+            return (unitMiBtn && unitMiBtn.classList.contains('active')) ? 'mi' : 'km';
+        }
+
+        function fmt(n) {
+            return Math.round(n).toLocaleString('en-IN');
+        }
+
+        function updateImpact() {
+            if (distanceUnitLabel) distanceUnitLabel.textContent = currentUnit();
+
+            var raw = distanceEl ? distanceEl.value : '';
+            var parts = modelEl.value.split(',').map(parseFloat);
+            var baseConsumption = parts[1];
+
+            if (raw === '' || raw === null || isNaN(parseFloat(raw)) || parseFloat(raw) <= 0) {
+                co2FigureEl.innerHTML = '–<span> kg</span>';
+                co2NoteEl.textContent = 'Enter your annual distance';
+                treesFigureEl.innerHTML = '–<span> trees</span>';
+                compareEl.style.display = 'none';
+                return;
+            }
+
+            var distance = parseFloat(raw);
+            var distanceKm = currentUnit() === 'mi' ? distance / KM_TO_MI : distance;
+
+            var petrolLitres = distanceKm * (AVG_PETROL_L_PER_100KM / 100);
+            var petrolCO2Kg = petrolLitres * CO2_PER_LITRE_PETROL_KG;
+
+            var evKwh = distanceKm * (baseConsumption / 100);
+            var evCO2Kg = evKwh * GRID_EMISSION_FACTOR_KG_PER_KWH;
+
+            var savedKg = Math.max(0, petrolCO2Kg - evCO2Kg);
+            var trees = savedKg / TREE_CO2_ABSORPTION_KG_PER_YEAR;
+
+            co2FigureEl.innerHTML = fmt(savedKg) + '<span> kg</span>';
+            co2NoteEl.textContent = savedKg > 0 ? 'vs. an average petrol car, per year' : 'No savings at these settings';
+            treesFigureEl.innerHTML = fmt(trees) + '<span> trees</span>';
+
+            compareEl.style.display = '';
+            petrolValueEl.textContent = fmt(petrolCO2Kg) + ' kg CO₂';
+            evValueEl.textContent = fmt(evCO2Kg) + ' kg CO₂';
+            var maxVal = Math.max(petrolCO2Kg, evCO2Kg, 1);
+            petrolBarEl.style.width = (petrolCO2Kg / maxVal * 100) + '%';
+            evBarEl.style.width = (evCO2Kg / maxVal * 100) + '%';
+        }
+
+        if (distanceEl) distanceEl.addEventListener('input', updateImpact);
+        if (modelEl) modelEl.addEventListener('change', updateImpact);
+        if (unitKmBtn) unitKmBtn.addEventListener('click', updateImpact);
+        if (unitMiBtn) unitMiBtn.addEventListener('click', updateImpact);
+
+        updateImpact();
+
+        var tempEl = document.getElementById('temperature');
+        var coldGlow = document.getElementById('glow-cold');
+        var hotGlow = document.getElementById('glow-hot');
+        var shell = document.documentElement;
+
+        function updateThermalAmbience() {
+            if (!tempEl) return;
+            var min = parseFloat(tempEl.min) || 0;
+            var max = parseFloat(tempEl.max) || 50;
+            var val = parseFloat(tempEl.value);
+            var pct = ((val - min) / (max - min)) * 100;
+            shell.style.setProperty('--thumb-pct', pct + '%');
+
+            var coldFactor = Math.max(0, Math.min(1, (25 - val) / 25));
+            var hotFactor = Math.max(0, Math.min(1, (val - 25) / 25));
+            if (coldGlow) coldGlow.style.opacity = (0.14 + coldFactor * 0.24).toFixed(2);
+            if (hotGlow) hotGlow.style.opacity = (0.14 + hotFactor * 0.24).toFixed(2);
+        }
+
+        if (tempEl) {
+            tempEl.addEventListener('input', updateThermalAmbience);
+        }
+        updateThermalAmbience();
+    })();
+    </script>
+
+    <!-- Environmental Insight Card JS -->
+    <script>
+    (function () {
+        'use strict';
+
+        var CO2_PER_LITRE_PETROL_KG = 2.31;
+        var AVG_PETROL_L_PER_100KM = 6.5;
+        var GRID_EMISSION_FACTOR_KG_PER_KWH = 0.71;
+        var TREE_CO2_ABSORPTION_KG_PER_YEAR = 21;
+        var KM_TO_MI = 0.621371;
+
+        var modelEl = document.getElementById('car-model');
+        var distanceEl = document.getElementById('annual-distance');
+        var unitMiBtn = document.getElementById('unit-mi');
+        var insightTextEl = document.getElementById('insight-text');
+
+        function currentUnit() {
+            return (unitMiBtn && unitMiBtn.classList.contains('active')) ? 'mi' : 'km';
+        }
+
+        function fmtTonnes(kg) {
+            return (kg / 1000).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
+        function fmtTrees(n) {
+            return Math.round(n).toLocaleString('en-IN');
+        }
+
+        function updateInsight() {
+            if (!insightTextEl || !modelEl) return;
+
+            var raw = distanceEl ? distanceEl.value : '';
+            var parts = modelEl.value.split(',').map(parseFloat);
+            var baseConsumption = parts[1];
+
+            if (raw === '' || raw === null || isNaN(parseFloat(raw)) || parseFloat(raw) <= 0) {
+                insightTextEl.textContent = 'Enter your annual driving distance above to see your personalized environmental impact summary.';
+                return;
+            }
+
+            var distance = parseFloat(raw);
+            var distanceKm = currentUnit() === 'mi' ? distance / KM_TO_MI : distance;
+
+            var petrolLitres = distanceKm * (AVG_PETROL_L_PER_100KM / 100);
+            var petrolCO2Kg = petrolLitres * CO2_PER_LITRE_PETROL_KG;
+
+            var evKwh = distanceKm * (baseConsumption / 100);
+            var evCO2Kg = evKwh * GRID_EMISSION_FACTOR_KG_PER_KWH;
+
+            var savedKg = Math.max(0, petrolCO2Kg - evCO2Kg);
+            var tonnes = fmtTonnes(savedKg);
+            var trees = fmtTrees(savedKg / TREE_CO2_ABSORPTION_KG_PER_YEAR);
+
+            insightTextEl.innerHTML =
+                'Your EV is estimated to save <strong>' + tonnes + ' tonnes</strong> of CO₂ annually compared with the reference petrol vehicle. ' +
+                'At your current driving distance, this is equivalent to approximately <strong>' + trees + ' mature trees</strong> absorbing CO₂ for one year. ' +
+                'Your largest environmental advantage comes from avoiding petrol combustion, while actual EV emissions depend on the charging grid.';
+        }
+
+        if (distanceEl) distanceEl.addEventListener('input', updateInsight);
+        if (modelEl) modelEl.addEventListener('change', updateInsight);
+        document.querySelectorAll('#unit-km, #unit-mi').forEach(function (btn) {
+            btn.addEventListener('click', updateInsight);
+        });
+
+        updateInsight();
+    })();
+    </script>
+
+    <!-- Sticky Nav & Scroll-spy JS -->
+    <script>
+    (function () {
+        'use strict';
+
+        var toggle = document.getElementById('nav-toggle');
+        var mobileNav = document.getElementById('site-nav-mobile');
+        var allLinks = document.querySelectorAll('.nav-link');
+        var sections = ['home', 'calculator', 'carbon', 'charging']
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
+
+        if (toggle && mobileNav) {
+            toggle.addEventListener('click', function () {
+                var isOpen = mobileNav.classList.toggle('open');
+                toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+            mobileNav.querySelectorAll('.nav-link').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    mobileNav.classList.remove('open');
+                    toggle.setAttribute('aria-expanded', 'false');
+                });
+            });
+        }
+
+        function setActive(id) {
+            allLinks.forEach(function (link) {
+                var match = link.getAttribute('href') === '#' + id;
+                link.classList.toggle('active', match);
+            });
+        }
+
+        if ('IntersectionObserver' in window && sections.length) {
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) setActive(entry.target.id);
+                });
+            }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+
+            sections.forEach(function (section) { observer.observe(section); });
+        }
+    })();
+    </script>
+</body>
+</html>
