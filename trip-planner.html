@@ -299,7 +299,7 @@
                 </div>
                 <div>
                     <div class="brand-word">Range Intelligence</div>
-                    <div class="brand-sub">EV Weather Calculator</div>
+                    <div class="brand-sub">Smart EV Assistant</div>
                 </div>
             </a>
 
@@ -358,6 +358,72 @@
                         <div class="field-error" id="destination-error"></div>
                     </div>
 
+                    <div class="field">
+                        <label for="trip-car-model">Car Model &amp; Battery</label>
+                        <select id="trip-car-model">
+                            <optgroup label="Mahindra">
+                                <option value="79,13.8" selected>Mahindra XEV 9e - Pack Two/Three (79 kWh)</option>
+                                <option value="59,13.5">Mahindra XEV 9e - Pack One (59 kWh)</option>
+                                <option value="79,13.5">Mahindra BE 6e - Pack Two (79 kWh)</option>
+                                <option value="59,13.2">Mahindra BE 6e - Pack One (59 kWh)</option>
+                                <option value="39.4,14.5">Mahindra XUV400 EV (39.4 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Tata Motors">
+                                <option value="55,12.8">Tata Curvv EV (55 kWh)</option>
+                                <option value="40.5,12.5">Tata Nexon EV Long Range (40.5 kWh)</option>
+                                <option value="35,12.2">Tata Punch EV (35 kWh)</option>
+                                <option value="24,11.8">Tata Tiago EV (24 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Tesla">
+                                <option value="75,12.5">Tesla Model 3 - Long Range (75 kWh)</option>
+                                <option value="60,12.2">Tesla Model 3 - RWD (60 kWh)</option>
+                                <option value="75,13.8">Tesla Model Y - Long Range (75 kWh)</option>
+                            </optgroup>
+                            <optgroup label="BYD">
+                                <option value="82.5,14.0">BYD Seal - Extended Range (82.5 kWh)</option>
+                                <option value="60.4,14.2">BYD Atto 3 (60.4 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Kia &amp; Hyundai">
+                                <option value="77.4,14.2">Kia EV6 - GT-Line (77.4 kWh)</option>
+                                <option value="99.8,18.5">Kia EV9 - AWD (99.8 kWh)</option>
+                                <option value="72.6,13.8">Hyundai Ioniq 5 (72.6 kWh)</option>
+                            </optgroup>
+                            <optgroup label="BMW">
+                                <option value="80.7,14.0">BMW i4 - eDrive40 (80.7 kWh)</option>
+                                <option value="111.5,18.8">BMW iX - xDrive50 (111.5 kWh)</option>
+                            </optgroup>
+                            <optgroup label="Volvo">
+                                <option value="78,16.2">Volvo XC40 / EX40 Recharge (78 kWh)</option>
+                                <option value="69,14.8">Volvo EX30 - Extended Range (69 kWh)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-battery-percent">Starting Battery %</label>
+                        <input type="number" id="trip-battery-percent" min="0" max="100" value="100" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-end-battery">Desired Battery % at Trip End</label>
+                        <input type="number" id="trip-end-battery" min="0" max="95" value="20" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-avg-speed">Avg Driving Speed (km/h)</label>
+                        <input type="number" id="trip-avg-speed" min="10" max="160" value="80" step="1" inputmode="numeric">
+                    </div>
+
+                    <div class="field">
+                        <label for="trip-charging-type">Preferred Charger Type</label>
+                        <select id="trip-charging-type">
+                            <option value="all" selected>All types</option>
+                            <option value="slow">Slow (AC)</option>
+                            <option value="fast">Fast (DC)</option>
+                            <option value="ultra">Ultra-fast (DC)</option>
+                        </select>
+                    </div>
+
                     <div class="planner-actions">
                         <button type="submit" class="btn btn-primary" id="plan-trip-btn">⚡ Plan Trip</button>
                         <div class="planner-status" id="planner-status"></div>
@@ -380,6 +446,11 @@
                 <div class="weather-row" id="weather-row"></div>
 
                 <div class="planner-map" id="planner-map"></div>
+
+                <div class="planner-actions">
+                    <button type="button" class="btn btn-secondary" id="live-nav-btn">🧭 Start Live Navigation</button>
+                    <div class="planner-status" id="live-nav-status"></div>
+                </div>
 
                 <h3 class="section-subhead">Charging stops on this route</h3>
                 <div class="stops-list" id="stops-list"></div>
@@ -431,6 +502,34 @@
         var originErrorEl = document.getElementById('origin-error');
         var destErrorEl = document.getElementById('destination-error');
         var setupNoticeEl = document.getElementById('setup-notice');
+        var modelEl = document.getElementById('trip-car-model');
+        var batteryEl = document.getElementById('trip-battery-percent');
+        var endBatteryEl = document.getElementById('trip-end-battery');
+        var speedEl = document.getElementById('trip-avg-speed');
+        var chargeTypeEl = document.getElementById('trip-charging-type');
+
+        function getTripInputs() {
+            var soc = parseFloat(batteryEl.value), endBattery = parseFloat(endBatteryEl.value), speed = parseFloat(speedEl.value);
+            if (isNaN(soc) || soc <= 0) soc = 100;
+            if (isNaN(speed) || speed <= 0) speed = 80;
+            if (isNaN(endBattery) || endBattery < 0) endBattery = 20;
+            if (endBattery >= soc) endBattery = Math.max(0, soc - 5);
+            return { model: modelEl.value, soc: soc, endBattery: endBattery, speed: speed, chargeType: chargeTypeEl.value };
+        }
+
+        // Rough keyword bands used to bucket a returned station into slow/fast/ultra-fast.
+        var CHARGE_TYPE_KEYWORDS = {
+            slow: ['slow', 'ac charg', 'level 2', 'type 2'],
+            fast: ['fast', 'dc fast', 'ccs', 'chademo'],
+            ultra: ['ultra', 'hpc', 'high power', 'supercharg', '150kw', '150 kw', '350kw', '350 kw']
+        };
+        function guessChargeType(place) {
+            var text = ((place.name || '') + ' ' + (place.vicinity || '')).toLowerCase();
+            if (CHARGE_TYPE_KEYWORDS.ultra.some(function (k) { return text.indexOf(k) !== -1; })) return 'ultra';
+            if (CHARGE_TYPE_KEYWORDS.fast.some(function (k) { return text.indexOf(k) !== -1; })) return 'fast';
+            if (CHARGE_TYPE_KEYWORDS.slow.some(function (k) { return text.indexOf(k) !== -1; })) return 'slow';
+            return 'unknown';
+        }
 
         var resultsSection = document.getElementById('results-section');
         var badgeRow = document.getElementById('badge-row');
@@ -601,17 +700,18 @@
             });
         }
 
-        // ---------- Range estimate, reused from the Calculator's saved settings ----------
-        function estimateRangeKm() {
+        // ---------- Range estimate, using the trip form's model/battery/speed inputs ----------
+        function estimateRangeKm(inputs) {
+            inputs = inputs || getTripInputs();
             var data = null;
             try {
                 var raw = localStorage.getItem(RANGE_STORAGE_KEY);
                 if (raw) data = JSON.parse(raw);
             } catch (e) { /* ignore */ }
 
-            var model = (data && data.model) ? data.model : '79,13.8';
-            var soc = (data && data.battery !== undefined) ? parseFloat(data.battery) : 100;
-            var speed = (data && data.speed !== undefined) ? parseFloat(data.speed) : 65;
+            var model = inputs.model;
+            var soc = inputs.soc;
+            var speed = inputs.speed;
             var temp = (data && data.temp !== undefined) ? parseFloat(data.temp) : 25;
 
             var parts = model.split(',').map(parseFloat);
@@ -772,9 +872,15 @@
 
         // ---------- Suggested charging stops along the chosen route ----------
         function planStops(meta) {
-            var rangeKm = estimateRangeKm();
-            var bufferedRange = rangeKm * 0.75; // keep a reserve, don't plan to run to empty
+            var inputs = getTripInputs();
+            var rangeKm = estimateRangeKm(inputs);
+            // Reserve down to the driver's desired end-of-trip battery %, not empty.
+            var usableFraction = Math.max(0.05, Math.min(0.95, 1 - (inputs.endBattery / inputs.soc)));
+            var bufferedRange = rangeKm * usableFraction;
             var stops = [];
+
+            var candidateStations = inputs.chargeType === 'all' ? meta.chargingStations :
+                meta.chargingStations.filter(function (s) { return guessChargeType(s) === inputs.chargeType; });
 
             if (!isFinite(bufferedRange) || bufferedRange <= 0 || meta.distanceKm <= bufferedRange) {
                 return { stops: stops, rangeKm: rangeKm };
@@ -784,7 +890,7 @@
             while (target < meta.distanceKm) {
                 var targetPoint = pointAtDistance(meta.path, meta.cum, target * 1000);
                 var nearest = null, nearestDist = Infinity;
-                meta.chargingStations.forEach(function (station) {
+                candidateStations.forEach(function (station) {
                     var loc = station.geometry && station.geometry.location;
                     if (!loc) return;
                     var d = metersBetween(targetPoint, loc);
@@ -796,6 +902,7 @@
                         name: nearest.name,
                         address: nearest.vicinity || '',
                         rating: nearest.rating,
+                        chargeType: guessChargeType(nearest),
                         location: nearest.geometry.location,
                         approxKm: Math.round(target),
                         found: true
@@ -868,6 +975,50 @@
             directionsRenderer.setRouteIndex(meta.originalIndex);
         }
 
+        // ---------- Live navigation: tracks the browser's live position on the route map ----------
+        var liveNavWatchId = null, liveNavMarker = null;
+        var liveNavBtn = document.getElementById('live-nav-btn');
+        var liveNavStatusEl = document.getElementById('live-nav-status');
+
+        function stopLiveNav() {
+            if (liveNavWatchId !== null) navigator.geolocation.clearWatch(liveNavWatchId);
+            liveNavWatchId = null;
+            if (liveNavMarker) { liveNavMarker.setMap(null); liveNavMarker = null; }
+            liveNavBtn.textContent = '🧭 Start Live Navigation';
+            liveNavStatusEl.textContent = '';
+        }
+
+        function startLiveNav() {
+            if (!navigator.geolocation) {
+                liveNavStatusEl.textContent = 'Geolocation is not supported by your browser.';
+                return;
+            }
+            liveNavBtn.textContent = '🧭 Stop Live Navigation';
+            liveNavStatusEl.textContent = 'Tracking your live position…';
+
+            liveNavWatchId = navigator.geolocation.watchPosition(
+                function (position) {
+                    var pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    if (!liveNavMarker) {
+                        liveNavMarker = new google.maps.Marker({
+                            position: pos, map: map, title: 'You are here',
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
+                        });
+                    } else {
+                        liveNavMarker.setPosition(pos);
+                    }
+                    map.panTo(pos);
+                    liveNavStatusEl.textContent = 'Live position updated ' + new Date().toLocaleTimeString();
+                },
+                function () { liveNavStatusEl.textContent = 'Could not read live location. Check location permissions.'; },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+            );
+        }
+
+        liveNavBtn.addEventListener('click', function () {
+            if (liveNavWatchId !== null) stopLiveNav(); else startLiveNav();
+        });
+
         function renderStopMarkers(stops) {
             clearMarkers();
             stops.forEach(function (stop, i) {
@@ -934,7 +1085,7 @@
                     '<div class="stop-index">' + (i + 1) + '</div>' +
                     '<div class="stop-body">' +
                     '<div class="stop-name">' + stop.name + '</div>' +
-                    '<div class="stop-meta">' + stop.address + (stop.rating ? ' · ★ ' + stop.rating : '') + '</div>' +
+                    '<div class="stop-meta">' + stop.address + (stop.rating ? ' · ★ ' + stop.rating : '') + (stop.chargeType ? ' · ' + ({slow:'Slow (AC)',fast:'Fast (DC)',ultra:'Ultra-fast (DC)',unknown:'Type unconfirmed'}[stop.chargeType]) : '') + '</div>' +
                     '</div>' +
                     '<div class="stop-dist">~' + stop.approxKm + ' km in</div>';
                 stopsListEl.appendChild(item);
@@ -966,6 +1117,7 @@
         }
 
         function renderResults(metas, unit) {
+            stopLiveNav();
             var best = metas[0];
             renderBadges(best, metas.length - 1);
             var stopsInfo = planStops(best);
